@@ -14,6 +14,8 @@ found during reverse engineering.
   - on / standby
   - percentage speed mapped to FP10 manual speed 1-10
   - preset modes: `auto`, `sleep`, `manual`, `pet`
+  - explicit `fan.turn_on` and `fan.turn_off` support for current Home
+    Assistant Core versions
 - Sensors for PM2.5, TVOC, air quality level, temperature, humidity and filter
   life.
 - Switches for child lock, sound and LED breathe mode.

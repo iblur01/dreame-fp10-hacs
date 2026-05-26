@@ -43,8 +43,12 @@ class DreameFP10Fan(DreameFP10Entity, FanEntity):
     _attr_name = None
     _attr_translation_key = "air_purifier"
     _attr_supported_features = (
-        FanEntityFeature.SET_SPEED | FanEntityFeature.PRESET_MODE
+        FanEntityFeature.TURN_ON
+        | FanEntityFeature.TURN_OFF
+        | FanEntityFeature.SET_SPEED
+        | FanEntityFeature.PRESET_MODE
     )
+    _enable_turn_on_off_backwards_compatibility = False
     _attr_preset_modes = [
         PRESET_AUTO,
         PRESET_SLEEP,
