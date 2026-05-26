@@ -1,0 +1,96 @@
+{
+  "title": "Dreame FP10 Air Purifier",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to Dreame Cloud",
+        "description": "The setup wizard tests the account and discovers compatible air purifiers before creating entities.",
+        "data": {
+          "username": "Email or phone",
+          "password": "Password",
+          "country": "Region"
+        }
+      },
+      "device": {
+        "title": "Select the purifier",
+        "description": "Home Assistant will test live MiOT properties on the selected device.",
+        "data": {
+          "did": "Device"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Unable to connect to the purifier.",
+      "invalid_auth": "Invalid Dreame credentials.",
+      "no_supported_devices": "No supported Dreame FP10 air purifier was found on this account."
+    },
+    "abort": {
+      "already_configured": "This purifier is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Dreame FP10 options",
+        "data": {
+          "scan_interval": "Polling interval in seconds"
+        }
+      }
+    }
+  },
+  "entity": {
+    "fan": {
+      "air_purifier": {
+        "name": "Air purifier"
+      }
+    },
+    "sensor": {
+      "pm25": {
+        "name": "PM2.5"
+      },
+      "tvoc": {
+        "name": "TVOC"
+      },
+      "air_quality_level": {
+        "name": "Air quality level"
+      },
+      "temperature": {
+        "name": "Temperature"
+      },
+      "humidity": {
+        "name": "Humidity"
+      },
+      "hepa_life": {
+        "name": "HEPA filter life"
+      },
+      "hepa_days": {
+        "name": "HEPA filter remaining days"
+      },
+      "carbon_life": {
+        "name": "Carbon filter life"
+      },
+      "carbon_metric": {
+        "name": "Carbon filter metric"
+      },
+      "display_text": {
+        "name": "Display text"
+      }
+    },
+    "switch": {
+      "child_lock": {
+        "name": "Child lock"
+      },
+      "sound": {
+        "name": "Sound"
+      },
+      "led_breathe": {
+        "name": "LED breathe"
+      }
+    },
+    "number": {
+      "led_brightness": {
+        "name": "LED brightness"
+      }
+    }
+  }
+}

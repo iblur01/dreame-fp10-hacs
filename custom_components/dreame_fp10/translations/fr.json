@@ -1,0 +1,96 @@
+{
+  "title": "Dreame FP10 Air Purifier",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connexion au cloud Dreame",
+        "description": "L'assistant teste le compte et detecte les purificateurs compatibles avant de creer les entites.",
+        "data": {
+          "username": "Email ou telephone",
+          "password": "Mot de passe",
+          "country": "Region"
+        }
+      },
+      "device": {
+        "title": "Selection du purificateur",
+        "description": "Home Assistant teste les proprietes MiOT en direct sur l'appareil selectionne.",
+        "data": {
+          "did": "Appareil"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Impossible de se connecter au purificateur.",
+      "invalid_auth": "Identifiants Dreame invalides.",
+      "no_supported_devices": "Aucun purificateur Dreame FP10 compatible n'a ete trouve sur ce compte."
+    },
+    "abort": {
+      "already_configured": "Ce purificateur est deja configure."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Options Dreame FP10",
+        "data": {
+          "scan_interval": "Intervalle de polling en secondes"
+        }
+      }
+    }
+  },
+  "entity": {
+    "fan": {
+      "air_purifier": {
+        "name": "Purificateur d'air"
+      }
+    },
+    "sensor": {
+      "pm25": {
+        "name": "PM2.5"
+      },
+      "tvoc": {
+        "name": "TVOC"
+      },
+      "air_quality_level": {
+        "name": "Niveau de qualite d'air"
+      },
+      "temperature": {
+        "name": "Temperature"
+      },
+      "humidity": {
+        "name": "Humidite"
+      },
+      "hepa_life": {
+        "name": "Vie filtre HEPA"
+      },
+      "hepa_days": {
+        "name": "Jours restants filtre HEPA"
+      },
+      "carbon_life": {
+        "name": "Vie filtre carbone"
+      },
+      "carbon_metric": {
+        "name": "Metrique filtre carbone"
+      },
+      "display_text": {
+        "name": "Texte afficheur"
+      }
+    },
+    "switch": {
+      "child_lock": {
+        "name": "Verrouillage enfant"
+      },
+      "sound": {
+        "name": "Son"
+      },
+      "led_breathe": {
+        "name": "LED respiration"
+      }
+    },
+    "number": {
+      "led_brightness": {
+        "name": "Luminosite LED"
+      }
+    }
+  }
+}

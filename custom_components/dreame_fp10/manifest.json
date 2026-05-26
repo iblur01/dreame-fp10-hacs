@@ -1,0 +1,12 @@
+{
+  "domain": "dreame_fp10",
+  "name": "Dreame FP10 Air Purifier",
+  "codeowners": ["@iblur01"],
+  "config_flow": true,
+  "documentation": "https://github.com/iblur01/dreame-fp10-hacs",
+  "integration_type": "device",
+  "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/iblur01/dreame-fp10-hacs/issues",
+  "requirements": ["requests>=2.31.0"],
+  "version": "0.1.0"
+}
