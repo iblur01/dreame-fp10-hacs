@@ -24,6 +24,8 @@ found during reverse engineering.
   seconds.
 - Reliable single-property MiOT reads for FP10 firmware that returns incomplete
   data on broader batches.
+- Immediate local feedback when setting manual speed; the next poll still
+  reconciles with the purifier's real cloud state.
 
 ## Installation with HACS
 

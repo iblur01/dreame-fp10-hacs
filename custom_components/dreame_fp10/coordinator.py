@@ -153,7 +153,11 @@ class DreameFP10Coordinator(DataUpdateCoordinator[dict[str, Any]]):
             [
                 {"siid": 2, "piid": 3, "value": FP10_MODE_MANUAL},
                 {"siid": 2, "piid": 4, "value": clamped},
-            ]
+            ],
+            optimistic_data={
+                "mode": FP10_MODE_MANUAL,
+                "fan_speed": clamped,
+            },
         )
 
     async def async_set_led_brightness(self, brightness: int) -> None:
@@ -168,11 +172,18 @@ class DreameFP10Coordinator(DataUpdateCoordinator[dict[str, Any]]):
             [{"siid": siid, "piid": piid, "value": 1 if enabled else 0}]
         )
 
-    async def async_set_properties(self, properties: list[dict[str, Any]]) -> None:
+    async def async_set_properties(
+        self,
+        properties: list[dict[str, Any]],
+        optimistic_data: dict[str, Any] | None = None,
+    ) -> None:
         """Write raw properties and refresh."""
         ok = await self.hass.async_add_executor_job(
             self.api.set_properties, self.device.did, properties, self.device.host
         )
         if not ok:
             raise HomeAssistantError("Dreame FP10 property write failed")
+        if optimistic_data:
+            self.async_set_updated_data({**(self.data or {}), **optimistic_data})
+            return
         await self.async_request_refresh()
