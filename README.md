@@ -20,6 +20,8 @@ found during reverse engineering.
 - Number entity for LED brightness.
 - Fast cloud polling, defaulting to 10 seconds and configurable from 5 to 60
   seconds.
+- Reliable single-property MiOT reads for FP10 firmware that returns incomplete
+  data on broader batches.
 
 ## Installation with HACS
 

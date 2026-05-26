@@ -185,13 +185,12 @@ class DreameCloudAPI:
 
         host_prefix = f"-{host.split('.')[0]}" if host else ""
         url = f"{self.api_url}/dreame-iot-com{host_prefix}/device/sendCommand"
-        request_id = int(time.time() * 1000) % 1000000000
         payload = {
             "did": str(did),
-            "id": request_id,
+            "id": 1,
             "data": {
                 "did": str(did),
-                "id": request_id,
+                "id": 1,
                 "method": method,
                 "params": params,
             },
@@ -226,19 +225,27 @@ class DreameCloudAPI:
         self, did: str, properties: list[dict[str, int]], host: str | None = None
     ) -> dict[tuple[int, int], Any]:
         """Read raw MiOT properties by siid/piid."""
-        params = [
-            {"did": str(did), "siid": prop["siid"], "piid": prop["piid"]}
-            for prop in properties
-        ]
-        result = self.send_command(did, "get_properties", params, host)
         values: dict[tuple[int, int], Any] = {}
 
-        if not isinstance(result, list):
-            return values
+        for prop in properties:
+            params = [{"did": str(did), "siid": prop["siid"], "piid": prop["piid"]}]
+            try:
+                result = self.send_command(did, "get_properties", params, host)
+            except DreameFP10ConnectionError as ex:
+                _LOGGER.debug(
+                    "Failed reading FP10 property %s.%s: %s",
+                    prop["siid"],
+                    prop["piid"],
+                    ex,
+                )
+                continue
 
-        for prop in result:
-            if prop.get("code", -1) == 0:
-                values[(prop["siid"], prop["piid"])] = prop.get("value")
+            if not isinstance(result, list):
+                continue
+
+            for item in result:
+                if item.get("code", -1) == 0:
+                    values[(item["siid"], item["piid"])] = item.get("value")
 
         return values
 
