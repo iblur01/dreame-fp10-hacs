@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import hashlib
+import itertools
 import logging
+import threading
 import time
 from typing import Any
 
@@ -46,6 +48,18 @@ class DreameCloudAPI:
         self._uid: str | None = None
         self._tenant_id = DREAME_TENANT_ID
         self._token_expire: float | None = None
+        self._id_counter = itertools.count(1)
+        self._id_lock = threading.Lock()
+
+    def _next_request_id(self) -> int:
+        """Return a unique request id.
+
+        The Dreame cloud correlates sendCommand responses by id. Reusing a
+        constant id makes it return another request's response, so each call
+        must carry a fresh id.
+        """
+        with self._id_lock:
+            return next(self._id_counter)
 
     @property
     def api_url(self) -> str:
@@ -185,12 +199,13 @@ class DreameCloudAPI:
 
         host_prefix = f"-{host.split('.')[0]}" if host else ""
         url = f"{self.api_url}/dreame-iot-com{host_prefix}/device/sendCommand"
+        request_id = self._next_request_id()
         payload = {
             "did": str(did),
-            "id": 1,
+            "id": request_id,
             "data": {
                 "did": str(did),
-                "id": 1,
+                "id": request_id,
                 "method": method,
                 "params": params,
             },
@@ -224,28 +239,36 @@ class DreameCloudAPI:
     def get_properties(
         self, did: str, properties: list[dict[str, int]], host: str | None = None
     ) -> dict[tuple[int, int], Any]:
-        """Read raw MiOT properties by siid/piid."""
-        values: dict[tuple[int, int], Any] = {}
+        """Read raw MiOT properties by siid/piid in a single batched call.
 
-        for prop in properties:
-            params = [{"did": str(did), "siid": prop["siid"], "piid": prop["piid"]}]
+        With a unique request id (see _next_request_id) the cloud reliably
+        returns every requested property in one get_properties call, so there
+        is no need to query each property separately.
+        """
+        values: dict[tuple[int, int], Any] = {}
+        params = [
+            {"did": str(did), "siid": prop["siid"], "piid": prop["piid"]}
+            for prop in properties
+        ]
+        wanted = {(prop["siid"], prop["piid"]) for prop in properties}
+
+        # The first call after a fresh session sometimes returns nothing while
+        # the device wakes; one retry reliably gets the full snapshot.
+        for attempt in range(2):
             try:
                 result = self.send_command(did, "get_properties", params, host)
             except DreameFP10ConnectionError as ex:
-                _LOGGER.debug(
-                    "Failed reading FP10 property %s.%s: %s",
-                    prop["siid"],
-                    prop["piid"],
-                    ex,
-                )
-                continue
+                _LOGGER.debug("Failed batched FP10 property read: %s", ex)
+                return values
 
-            if not isinstance(result, list):
-                continue
+            if isinstance(result, list):
+                for item in result:
+                    key = (item.get("siid"), item.get("piid"))
+                    if item.get("code", -1) == 0 and key in wanted:
+                        values[key] = item.get("value")
 
-            for item in result:
-                if item.get("code", -1) == 0:
-                    values[(item["siid"], item["piid"])] = item.get("value")
+            if values or attempt == 1:
+                break
 
         return values
 

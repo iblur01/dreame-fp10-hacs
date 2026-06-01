@@ -24,6 +24,8 @@ from .const import (
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
     FP10_MODE_MANUAL,
+    FP10_POWER_ON,
+    FP10_POWER_STANDBY,
     FP10_SPEED_MAX,
     FP10_SPEED_MIN,
 )
@@ -128,9 +130,16 @@ class DreameFP10Coordinator(DataUpdateCoordinator[dict[str, Any]]):
         except DreameFP10Error as ex:
             raise UpdateFailed(str(ex)) from ex
 
+        # The cloud occasionally drops a property from an otherwise complete
+        # response. Carry the last known value forward instead of blanking the
+        # entity, so a single flaky poll does not flip sensors to unavailable.
+        previous = self.data or {}
         data: dict[str, Any] = {}
         for key, prop in FP10_PROPERTIES.items():
-            data[key] = raw_values.get(prop)
+            if prop in raw_values:
+                data[key] = raw_values[prop]
+            else:
+                data[key] = previous.get(key)
         return data
 
     async def async_set_power(self, on: bool) -> None:
@@ -140,11 +149,20 @@ class DreameFP10Coordinator(DataUpdateCoordinator[dict[str, Any]]):
         )
         if not ok:
             raise HomeAssistantError("Dreame FP10 power command failed")
-        await self.async_request_refresh()
+        # Reflect the change immediately; the cloud read lags the device.
+        self.async_set_updated_data(
+            {
+                **(self.data or {}),
+                "power": FP10_POWER_ON if on else FP10_POWER_STANDBY,
+            }
+        )
 
     async def async_set_mode(self, mode: int) -> None:
         """Set FP10 purifier mode."""
-        await self.async_set_properties([{"siid": 2, "piid": 3, "value": mode}])
+        await self.async_set_properties(
+            [{"siid": 2, "piid": 3, "value": mode}],
+            optimistic_data={"mode": mode},
+        )
 
     async def async_set_fan_speed(self, speed: int) -> None:
         """Set manual fan speed, forcing manual mode first."""
@@ -163,13 +181,17 @@ class DreameFP10Coordinator(DataUpdateCoordinator[dict[str, Any]]):
     async def async_set_led_brightness(self, brightness: int) -> None:
         """Set LED brightness."""
         value = max(0, min(100, brightness))
-        await self.async_set_properties([{"siid": 6, "piid": 6, "value": value}])
+        await self.async_set_properties(
+            [{"siid": 6, "piid": 6, "value": value}],
+            optimistic_data={"led_brightness": value},
+        )
 
     async def async_set_bool(self, key: str, enabled: bool) -> None:
         """Set a boolean vendor option."""
         siid, piid = FP10_PROPERTIES[key]
         await self.async_set_properties(
-            [{"siid": siid, "piid": piid, "value": 1 if enabled else 0}]
+            [{"siid": siid, "piid": piid, "value": 1 if enabled else 0}],
+            optimistic_data={key: 1 if enabled else 0},
         )
 
     async def async_set_properties(
