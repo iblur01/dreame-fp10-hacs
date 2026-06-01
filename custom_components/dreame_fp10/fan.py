@@ -14,8 +14,8 @@ from .const import (
     FP10_POWER_ON,
     FP10_SPEED_MAX,
     FP10_SPEED_MIN,
-    MATTER_CLUSTER_AIR_PURIFIER,
     MATTER_CLUSTER_FAN_CONTROL,
+    MATTER_DEVICE_TYPE_AIR_PURIFIER,
     MODE_TO_PRESET,
     PRESET_AUTO,
     PRESET_MANUAL,
@@ -88,7 +88,7 @@ class DreameFP10Fan(DreameFP10Entity, FanEntity):
     def extra_state_attributes(self) -> dict[str, Any]:
         """Expose the intended Matter cluster mapping."""
         return {
-            "matter_air_purifier_cluster": MATTER_CLUSTER_AIR_PURIFIER,
+            "matter_air_purifier_device_type": MATTER_DEVICE_TYPE_AIR_PURIFIER,
             "matter_fan_control_cluster": MATTER_CLUSTER_FAN_CONTROL,
         }
 

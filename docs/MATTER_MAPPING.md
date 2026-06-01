@@ -7,7 +7,7 @@ Air Purifier device type so a later Matter bridge can map entities cleanly.
 
 | FP10 feature | Home Assistant entity | Dreame MiOT | Matter cluster target |
 | --- | --- | --- | --- |
-| Purifier main control | `fan` | `2.1`, `2.3`, `2.4`, action `2.1` | Air Purifier `0x005D`, Fan Control `0x0202` |
+| Purifier main control | `fan` | `2.1`, `2.3`, `2.4`, action `2.1` | Air Purifier device type `0x002D`, Fan Control `0x0202` |
 | Auto / Sleep / Manual / Pet modes | `fan.preset_mode` | `2.3` | Fan Control presets / Air Purifier mode |
 | Manual speed 1-10 | `fan.percentage` | `2.4` with `2.3=3` | Fan Control `0x0202` |
 | PM2.5 | `sensor.pm25` | `3.5` | Air Quality `0x005B` |
