@@ -1,0 +1,106 @@
+{
+  "title": "Dreame FP10 Luftreiniger",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Mit Dreame Cloud verbinden",
+        "description": "Der Einrichtungsassistent testet das Konto und sucht nach kompatiblen Luftreinigern, bevor Entitäten erstellt werden.",
+        "data": {
+          "username": "E-Mail oder Telefon",
+          "password": "Passwort",
+          "country": "Region"
+        }
+      },
+      "device": {
+        "title": "Luftreiniger auswählen",
+        "description": "Home Assistant testet Live-MiOT-Eigenschaften auf dem ausgewählten Gerät.",
+        "data": {
+          "did": "Gerät"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Verbindung zum Luftreiniger nicht möglich.",
+      "invalid_auth": "Ungültige Dreame-Anmeldedaten.",
+      "no_supported_devices": "Es wurde kein unterstützter Dreame FP10 Luftreiniger für dieses Konto gefunden."
+    },
+    "abort": {
+      "already_configured": "Dieser Luftreiniger ist bereits konfiguriert."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Dreame FP10 Optionen",
+        "data": {
+          "scan_interval": "Abfrageintervall in Sekunden"
+        }
+      }
+    }
+  },
+  "entity": {
+    "fan": {
+      "air_purifier": {
+        "name": "Luftreiniger",
+        "state_attributes": {
+          "preset_mode": {
+            "state": {
+              "auto": "Auto",
+              "sleep": "Schlafen",
+              "manual": "Manuell",
+              "pet": "Haustier"
+            }
+          }
+        }
+      }
+    },
+    "sensor": {
+      "pm25": {
+        "name": "PM2.5"
+      },
+      "tvoc": {
+        "name": "TVOC"
+      },
+      "air_quality_level": {
+        "name": "Luftqualitätsstufe"
+      },
+      "temperature": {
+        "name": "Temperatur"
+      },
+      "humidity": {
+        "name": "Luftfeuchtigkeit"
+      },
+      "hepa_life": {
+        "name": "HEPA-Filterlebensdauer"
+      },
+      "hepa_days": {
+        "name": "Verbleibende Tage HEPA-Filter"
+      },
+      "carbon_life": {
+        "name": "Kohlefilterlebensdauer"
+      },
+      "carbon_metric": {
+        "name": "Kohlefilter-Metrik"
+      },
+      "display_text": {
+        "name": "Anzeigetext"
+      }
+    },
+    "switch": {
+      "child_lock": {
+        "name": "Kindersicherung"
+      },
+      "sound": {
+        "name": "Ton"
+      },
+      "led_breathe": {
+        "name": "LED Atmen"
+      }
+    },
+    "number": {
+      "led_brightness": {
+        "name": "LED-Helligkeit"
+      }
+    }
+  }
+}

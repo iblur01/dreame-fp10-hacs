@@ -1,0 +1,106 @@
+{
+  "title": "Purificador de aire Dreame FP10",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Conectar a Dreame Cloud",
+        "description": "El asistente de configuración probará la cuenta y descubrirá purificadores de aire compatibles antes de crear las entidades.",
+        "data": {
+          "username": "Correo electrónico o teléfono",
+          "password": "Contraseña",
+          "country": "Región"
+        }
+      },
+      "device": {
+        "title": "Seleccionar el purificador",
+        "description": "Home Assistant probará las propiedades MiOT en vivo en el dispositivo seleccionado.",
+        "data": {
+          "did": "Dispositivo"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "No se puede conectar al purificador.",
+      "invalid_auth": "Credenciales de Dreame no válidas.",
+      "no_supported_devices": "No se ha encontrado ningún purificador de aire Dreame FP10 compatible en esta cuenta."
+    },
+    "abort": {
+      "already_configured": "Este purificador ya está configurado."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Opciones de Dreame FP10",
+        "data": {
+          "scan_interval": "Intervalo de actualización en segundos"
+        }
+      }
+    }
+  },
+  "entity": {
+    "fan": {
+      "air_purifier": {
+        "name": "Purificador de aire",
+        "state_attributes": {
+          "preset_mode": {
+            "state": {
+              "auto": "Auto",
+              "sleep": "Noche",
+              "manual": "Manual",
+              "pet": "Mascota"
+            }
+          }
+        }
+      }
+    },
+    "sensor": {
+      "pm25": {
+        "name": "PM2.5"
+      },
+      "tvoc": {
+        "name": "TVOC"
+      },
+      "air_quality_level": {
+        "name": "Nivel de calidad del aire"
+      },
+      "temperature": {
+        "name": "Temperatura"
+      },
+      "humidity": {
+        "name": "Humedad"
+      },
+      "hepa_life": {
+        "name": "Vida del filtro HEPA"
+      },
+      "hepa_days": {
+        "name": "Días restantes del filtro HEPA"
+      },
+      "carbon_life": {
+        "name": "Vida del filtro de carbón"
+      },
+      "carbon_metric": {
+        "name": "Métrica del filtro de carbón"
+      },
+      "display_text": {
+        "name": "Texto de pantalla"
+      }
+    },
+    "switch": {
+      "child_lock": {
+        "name": "Bloqueo para niños"
+      },
+      "sound": {
+        "name": "Sonido"
+      },
+      "led_breathe": {
+        "name": "Respiración LED"
+      }
+    },
+    "number": {
+      "led_brightness": {
+        "name": "Brillo LED"
+      }
+    }
+  }
+}

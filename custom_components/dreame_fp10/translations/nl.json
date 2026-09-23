@@ -1,0 +1,106 @@
+{
+  "title": "Dreame FP10 Luchtreiniger",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Verbinden met Dreame Cloud",
+        "description": "De configuratiewizard test het account en zoekt naar compatibele luchtreinigers voordat de entiteiten worden aangemaakt.",
+        "data": {
+          "username": "E-mail of telefoon",
+          "password": "Wachtwoord",
+          "country": "Regio"
+        }
+      },
+      "device": {
+        "title": "Selecteer de luchtreiniger",
+        "description": "Home Assistant zal live MiOT-eigenschappen testen op het geselecteerde apparaat.",
+        "data": {
+          "did": "Apparaat"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Kan geen verbinding maken met de luchtreiniger.",
+      "invalid_auth": "Ongeldige Dreame inloggegevens.",
+      "no_supported_devices": "Er is geen ondersteunde Dreame FP10 luchtreiniger gevonden op dit account."
+    },
+    "abort": {
+      "already_configured": "Deze luchtreiniger is al geconfigureerd."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Dreame FP10 opties",
+        "data": {
+          "scan_interval": "Polling-interval in seconden"
+        }
+      }
+    }
+  },
+  "entity": {
+    "fan": {
+      "air_purifier": {
+        "name": "Luchtreiniger",
+        "state_attributes": {
+          "preset_mode": {
+            "state": {
+              "auto": "Auto",
+              "sleep": "Slaap",
+              "manual": "Handmatig",
+              "pet": "Huisdier"
+            }
+          }
+        }
+      }
+    },
+    "sensor": {
+      "pm25": {
+        "name": "PM2.5"
+      },
+      "tvoc": {
+        "name": "TVOC"
+      },
+      "air_quality_level": {
+        "name": "Luchtkwaliteitsniveau"
+      },
+      "temperature": {
+        "name": "Temperatuur"
+      },
+      "humidity": {
+        "name": "Luchtvochtigheid"
+      },
+      "hepa_life": {
+        "name": "Levensduur HEPA-filter"
+      },
+      "hepa_days": {
+        "name": "Resterende dagen HEPA-filter"
+      },
+      "carbon_life": {
+        "name": "Levensduur koolstoffilter"
+      },
+      "carbon_metric": {
+        "name": "Metriek koolstoffilter"
+      },
+      "display_text": {
+        "name": "Weergavetekst"
+      }
+    },
+    "switch": {
+      "child_lock": {
+        "name": "Kinderslot"
+      },
+      "sound": {
+        "name": "Geluid"
+      },
+      "led_breathe": {
+        "name": "LED ademen"
+      }
+    },
+    "number": {
+      "led_brightness": {
+        "name": "LED-helderheid"
+      }
+    }
+  }
+}

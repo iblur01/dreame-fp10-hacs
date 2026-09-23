@@ -41,7 +41,17 @@
   "entity": {
     "fan": {
       "air_purifier": {
-        "name": "Purificateur d'air"
+        "name": "Purificateur d'air",
+        "state_attributes": {
+          "preset_mode": {
+            "state": {
+              "auto": "Auto",
+              "sleep": "Nuit",
+              "manual": "Manuel",
+              "pet": "Animal"
+            }
+          }
+        }
       }
     },
     "sensor": {
