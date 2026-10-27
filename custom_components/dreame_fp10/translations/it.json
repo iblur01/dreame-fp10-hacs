@@ -17,6 +17,13 @@
         "data": {
           "did": "Dispositivo"
         }
+      },
+      "reauth_confirm": {
+        "title": "Riconnetti account Dreame",
+        "description": "Il cloud Dreame ha rifiutato le credenziali di {username}. Inserisci la password attuale per riconnettere il purificatore.",
+        "data": {
+          "password": "Password"
+        }
       }
     },
     "error": {
@@ -25,7 +32,9 @@
       "no_supported_devices": "Nessun purificatore d'aria Dreame FP10 supportato trovato su questo account."
     },
     "abort": {
-      "already_configured": "Questo purificatore è già configurato."
+      "already_configured": "Questo purificatore è già configurato.",
+      "reauth_failed": "L'account Dreame non e stato trovato.",
+      "reauth_successful": "L'account Dreame e stato riconnesso."
     }
   },
   "options": {
@@ -84,6 +93,38 @@
       },
       "display_text": {
         "name": "Testo del display"
+      },
+      "cloud_status": {
+        "name": "Stato cloud",
+        "state": {
+          "ok": "OK",
+          "degraded": "Degradato",
+          "error": "Errore",
+          "auth_error": "Errore di autenticazione"
+        }
+      },
+      "last_error": {
+        "name": "Ultimo errore cloud"
+      },
+      "consecutive_failures": {
+        "name": "Errori consecutivi"
+      },
+      "missing_properties": {
+        "name": "Proprieta mancanti"
+      },
+      "last_successful_update": {
+        "name": "Ultimo aggiornamento riuscito"
+      },
+      "response_time": {
+        "name": "Tempo di risposta cloud"
+      },
+      "temperature_status": {
+        "name": "Stato temperatura",
+        "state": {
+          "ok": "OK",
+          "not_reported": "Non riportata dal dispositivo",
+          "missing": "Mancante nella risposta cloud"
+        }
       }
     },
     "switch": {
@@ -101,6 +142,43 @@
       "led_brightness": {
         "name": "Luminosità LED"
       }
+    },
+    "binary_sensor": {
+      "cloud_connection": {
+        "name": "Connessione cloud"
+      }
+    }
+  },
+  "services": {
+    "test_connection": {
+      "name": "Verifica connessione",
+      "description": "Esegue una diagnostica in tempo reale del cloud Dreame e del purificatore, quindi restituisce un rapporto.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Voce di configurazione",
+          "description": "La voce di configurazione Dreame FP10. Facoltativa quando e configurata una sola voce."
+        }
+      }
+    },
+    "read_properties": {
+      "name": "Leggi proprieta grezze",
+      "description": "Legge le proprieta MiOT grezze dal purificatore e restituisce valori e codici di errore.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Voce di configurazione",
+          "description": "La voce di configurazione Dreame FP10. Facoltativa quando e configurata una sola voce."
+        },
+        "properties": {
+          "name": "Proprieta",
+          "description": "Elenco facoltativo di stringhe siid.piid, ad esempio [\"3.3\", \"3.2\"]. Per impostazione predefinita, tutte le proprieta FP10."
+        }
+      }
+    }
+  },
+  "issues": {
+    "device_unreachable": {
+      "title": "Purificatore Dreame FP10 irraggiungibile",
+      "description": "Home Assistant non e riuscito a leggere i dati da {name} per {count} sondaggi consecutivi. Ultimo tipo di errore: {error}. Apri le entita di diagnostica dell'integrazione o scarica la diagnostica per investigare."
     }
   }
 }

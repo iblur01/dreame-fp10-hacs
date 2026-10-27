@@ -7,6 +7,7 @@ import itertools
 import logging
 import threading
 import time
+from dataclasses import dataclass, field
 from typing import Any
 
 import requests
@@ -20,6 +21,38 @@ DREAME_TENANT_ID = "000000"
 DREAME_RLC = "1c80b3787b2266776bcdc481f37d8fa42ba10a30af81a6df-1"
 
 
+def _safe_payload_detail(payload: Any) -> str:
+    """Return a short error detail without echoing a full cloud response."""
+    if not isinstance(payload, dict):
+        return ""
+    details: list[str] = []
+    if (code := payload.get("code")) is not None:
+        details.append(f"code={code}")
+    message = payload.get("msg") or payload.get("message")
+    if isinstance(message, (str, int, float, bool)):
+        details.append(" ".join(str(message).split())[:200])
+    return f" ({', '.join(details)})" if details else ""
+
+
+def _response_detail(response: requests.Response) -> str:
+    """Return a safe error detail from an HTTP response."""
+    try:
+        payload = response.json()
+    except ValueError:
+        return ""
+    return _safe_payload_detail(payload)
+
+
+def _response_json(response: requests.Response, context: str) -> Any:
+    """Decode a cloud response or raise a normalized connection error."""
+    try:
+        return response.json()
+    except ValueError as ex:
+        raise DreameFP10ConnectionError(
+            f"{context} returned invalid JSON (HTTP {response.status_code})"
+        ) from ex
+
+
 class DreameFP10Error(Exception):
     """Base error for Dreame FP10 API calls."""
 
@@ -30,6 +63,42 @@ class DreameFP10AuthError(DreameFP10Error):
 
 class DreameFP10ConnectionError(DreameFP10Error):
     """Cloud connection failed."""
+
+
+class DreameFP10EmptyResponseError(DreameFP10ConnectionError):
+    """Cloud answered successfully but returned no usable properties."""
+
+    def __init__(self, message: str, *, attempts: int = 0) -> None:
+        super().__init__(message)
+        self.attempts = attempts
+
+
+class DreameFP10PropertyError(DreameFP10ConnectionError):
+    """Cloud rejected every requested property."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        errors: dict[tuple[int, int], int] | None = None,
+        requested: int = 0,
+        attempts: int = 0,
+    ) -> None:
+        super().__init__(message)
+        self.errors = errors or {}
+        self.requested = requested
+        self.attempts = attempts
+
+
+@dataclass(slots=True)
+class PropertyReadResult:
+    """Detailed result of one MiOT property snapshot."""
+
+    values: dict[tuple[int, int], Any] = field(default_factory=dict)
+    errors: dict[tuple[int, int], int] = field(default_factory=dict)
+    requested: int = 0
+    attempts: int = 0
+    elapsed: float = 0.0
 
 
 class DreameCloudAPI:
@@ -71,6 +140,27 @@ class DreameCloudAPI:
         """Return the logged-in Dreame user id."""
         return self._uid
 
+    @property
+    def country(self) -> str:
+        """Return the configured cloud region."""
+        return self._country
+
+    @property
+    def authenticated(self) -> bool:
+        """Return true when an access token is available."""
+        return bool(self._access_token)
+
+    @property
+    def token_expires_in(self) -> int | None:
+        """Return the remaining access-token lifetime in seconds."""
+        if self._token_expire is None:
+            return None
+        return max(0, int(self._token_expire - time.time()))
+
+    def close(self) -> None:
+        """Close the underlying HTTP session."""
+        self._session.close()
+
     def login(self) -> None:
         """Authenticate against Dreame Cloud."""
         url = f"{self.api_url}/dreame-auth/oauth/token"
@@ -97,15 +187,20 @@ class DreameCloudAPI:
             raise DreameFP10ConnectionError(str(ex)) from ex
 
         if response.status_code in (400, 401, 403):
-            raise DreameFP10AuthError(response.text)
+            raise DreameFP10AuthError(
+                f"Dreame Cloud rejected the credentials (HTTP {response.status_code})"
+            )
         if response.status_code != 200:
             raise DreameFP10ConnectionError(
-                f"Login failed with HTTP {response.status_code}: {response.text}"
+                f"Login failed with HTTP {response.status_code}"
+                f"{_response_detail(response)}"
             )
 
-        result = response.json()
-        if "access_token" not in result:
-            raise DreameFP10AuthError(str(result))
+        result = _response_json(response, "Login")
+        if not isinstance(result, dict) or "access_token" not in result:
+            raise DreameFP10AuthError(
+                "Dreame Cloud login response did not contain an access token"
+            )
 
         self._access_token = result["access_token"]
         self._refresh_token = result.get("refresh_token")
@@ -138,7 +233,10 @@ class DreameCloudAPI:
         try:
             response = self._session.post(url, headers=headers, data=data, timeout=10)
         except requests.RequestException as ex:
-            _LOGGER.debug("Token refresh failed, retrying full login: %s", ex)
+            _LOGGER.debug(
+                "Token refresh failed (%s), retrying full login",
+                type(ex).__name__,
+            )
             self.login()
             return
 
@@ -146,8 +244,12 @@ class DreameCloudAPI:
             self.login()
             return
 
-        result = response.json()
-        if "access_token" not in result:
+        try:
+            result = response.json()
+        except ValueError:
+            self.login()
+            return
+        if not isinstance(result, dict) or "access_token" not in result:
             self.login()
             return
 
@@ -165,7 +267,7 @@ class DreameCloudAPI:
             "Accept": "*/*",
         }
 
-    def get_devices(self) -> list[dict[str, Any]]:
+    def get_devices(self, _auth_retry: bool = True) -> list[dict[str, Any]]:
         """Return Dreame devices bound to the account."""
         self._refresh_login()
 
@@ -178,21 +280,42 @@ class DreameCloudAPI:
             raise DreameFP10ConnectionError(str(ex)) from ex
 
         if response.status_code == 401:
+            if not _auth_retry:
+                raise DreameFP10AuthError("Dreame Cloud rejected the token (HTTP 401)")
             self.login()
-            return self.get_devices()
+            return self.get_devices(_auth_retry=False)
         if response.status_code != 200:
             raise DreameFP10ConnectionError(
-                f"Device discovery failed with HTTP {response.status_code}: {response.text}"
+                f"Device discovery failed with HTTP {response.status_code}"
+                f"{_response_detail(response)}"
             )
 
-        result = response.json()
-        if result.get("code") != 0 or "data" not in result:
-            raise DreameFP10ConnectionError(f"Device discovery failed: {result}")
+        result = _response_json(response, "Device discovery")
+        if (
+            not isinstance(result, dict)
+            or result.get("code") != 0
+            or "data" not in result
+        ):
+            raise DreameFP10ConnectionError(
+                f"Device discovery failed{_safe_payload_detail(result)}"
+            )
 
-        return result["data"]["page"]["records"]
+        data = result.get("data")
+        page = data.get("page") if isinstance(data, dict) else None
+        records = page.get("records") if isinstance(page, dict) else None
+        if not isinstance(records, list):
+            raise DreameFP10ConnectionError(
+                "Device discovery response did not contain a device list"
+            )
+        return records
 
     def send_command(
-        self, did: str, method: str, params: Any, host: str | None = None
+        self,
+        did: str,
+        method: str,
+        params: Any,
+        host: str | None = None,
+        _auth_retry: bool = True,
     ) -> Any:
         """Send a raw MiOT command through Dreame Cloud."""
         self._refresh_login()
@@ -219,58 +342,126 @@ class DreameCloudAPI:
             raise DreameFP10ConnectionError(str(ex)) from ex
 
         if response.status_code == 401:
+            if not _auth_retry:
+                raise DreameFP10AuthError("Dreame Cloud rejected the token (HTTP 401)")
             self.login()
-            return self.send_command(did, method, params, host)
+            return self.send_command(did, method, params, host, _auth_retry=False)
         if response.status_code != 200:
             raise DreameFP10ConnectionError(
-                f"Command failed with HTTP {response.status_code}: {response.text}"
+                f"Command failed with HTTP {response.status_code}"
+                f"{_response_detail(response)}"
             )
 
-        result = response.json()
+        result = _response_json(response, "Command")
+        if not isinstance(result, dict):
+            raise DreameFP10ConnectionError(
+                f"Command failed{_safe_payload_detail(result)}"
+            )
         if result.get("code") != 0:
-            raise DreameFP10ConnectionError(f"Command failed: {result}")
+            raise DreameFP10ConnectionError(
+                f"Command failed{_safe_payload_detail(result)}"
+            )
 
-        if result.get("data") and "result" in result["data"]:
-            return result["data"]["result"]
+        data = result.get("data")
+        if isinstance(data, dict) and "result" in data:
+            return data["result"]
         if result.get("success"):
             return {"code": 0}
-        return result.get("data")
+        return data
 
     def get_properties(
         self, did: str, properties: list[dict[str, int]], host: str | None = None
     ) -> dict[tuple[int, int], Any]:
-        """Read raw MiOT properties by siid/piid in a single batched call.
+        """Read raw MiOT properties by siid/piid in a single batched call."""
+        return self.get_properties_detailed(did, properties, host).values
+
+    def get_properties_detailed(
+        self, did: str, properties: list[dict[str, int]], host: str | None = None
+    ) -> PropertyReadResult:
+        """Read raw MiOT properties and retain per-property diagnostics.
 
         With a unique request id (see _next_request_id) the cloud reliably
         returns every requested property in one get_properties call, so there
-        is no need to query each property separately.
+        is no need to query each property separately. Transport and empty
+        responses are retried once, then raised so the coordinator can mark
+        the entities unavailable instead of silently keeping stale values.
         """
-        values: dict[tuple[int, int], Any] = {}
         params = [
             {"did": str(did), "siid": prop["siid"], "piid": prop["piid"]}
             for prop in properties
         ]
         wanted = {(prop["siid"], prop["piid"]) for prop in properties}
+        result = PropertyReadResult(requested=len(wanted))
+        started = time.monotonic()
+        last_error: DreameFP10Error | None = None
 
         # The first call after a fresh session sometimes returns nothing while
         # the device wakes; one retry reliably gets the full snapshot.
         for attempt in range(2):
+            result.attempts = attempt + 1
             try:
-                result = self.send_command(did, "get_properties", params, host)
+                response = self.send_command(did, "get_properties", params, host)
+            except DreameFP10AuthError:
+                raise
             except DreameFP10ConnectionError as ex:
-                _LOGGER.debug("Failed batched FP10 property read: %s", ex)
-                return values
+                last_error = ex
+                _LOGGER.debug(
+                    "Failed batched FP10 property read (attempt %s): %s",
+                    attempt + 1,
+                    ex,
+                )
+                if attempt == 0:
+                    time.sleep(0.5)
+                    continue
+                result.elapsed = time.monotonic() - started
+                ex.attempts = result.attempts
+                raise
 
-            if isinstance(result, list):
-                for item in result:
+            if isinstance(response, list):
+                for item in response:
+                    if not isinstance(item, dict):
+                        continue
                     key = (item.get("siid"), item.get("piid"))
-                    if item.get("code", -1) == 0 and key in wanted:
-                        values[key] = item.get("value")
+                    if key not in wanted:
+                        continue
+                    code = item.get("code", -1)
+                    if code == 0:
+                        result.values[key] = item.get("value")
+                    else:
+                        result.errors[key] = code
+            else:
+                last_error = DreameFP10ConnectionError(
+                    f"Unexpected get_properties response: {type(response).__name__}"
+                )
 
-            if values or attempt == 1:
+            if result.values or result.errors:
                 break
+            if attempt == 0:
+                time.sleep(0.5)
 
-        return values
+        result.elapsed = time.monotonic() - started
+
+        if not result.values and not result.errors:
+            result.elapsed = time.monotonic() - started
+            if last_error is not None:
+                last_error.attempts = result.attempts
+                raise last_error
+            raise DreameFP10EmptyResponseError(
+                "Cloud returned no usable properties after "
+                f"{result.attempts} attempt(s)",
+                attempts=result.attempts,
+            )
+
+        if not result.values:
+            codes = ", ".join(str(code) for code in sorted(set(result.errors.values())))
+            raise DreameFP10PropertyError(
+                f"Cloud rejected all {result.requested} properties (codes: {codes})",
+                errors=dict(result.errors),
+                requested=result.requested,
+                attempts=result.attempts,
+            )
+
+        return result
 
     def set_properties(
         self, did: str, properties: list[dict[str, Any]], host: str | None = None
@@ -281,7 +472,9 @@ class DreameCloudAPI:
         return bool(
             result
             and isinstance(result, list)
-            and all(item.get("code", -1) == 0 for item in result)
+            and all(
+                isinstance(item, dict) and item.get("code", -1) == 0 for item in result
+            )
         )
 
     def set_power(self, did: str, on: bool, host: str | None = None) -> bool:

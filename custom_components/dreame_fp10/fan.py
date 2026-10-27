@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, ClassVar
 
 from homeassistant.components.fan import FanEntity, FanEntityFeature
 from homeassistant.config_entries import ConfigEntry
@@ -49,7 +49,7 @@ class DreameFP10Fan(DreameFP10Entity, FanEntity):
         | FanEntityFeature.PRESET_MODE
     )
     _enable_turn_on_off_backwards_compatibility = False
-    _attr_preset_modes = [
+    _attr_preset_modes: ClassVar[list[str]] = [
         PRESET_AUTO,
         PRESET_SLEEP,
         PRESET_MANUAL,

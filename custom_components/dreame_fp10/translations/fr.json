@@ -17,6 +17,13 @@
         "data": {
           "did": "Appareil"
         }
+      },
+      "reauth_confirm": {
+        "title": "Reconnecter le compte Dreame",
+        "description": "Le cloud Dreame a refuse les identifiants de {username}. Saisissez le mot de passe actuel pour reconnecter le purificateur.",
+        "data": {
+          "password": "Mot de passe"
+        }
       }
     },
     "error": {
@@ -25,7 +32,9 @@
       "no_supported_devices": "Aucun purificateur Dreame FP10 compatible n'a ete trouve sur ce compte."
     },
     "abort": {
-      "already_configured": "Ce purificateur est deja configure."
+      "already_configured": "Ce purificateur est deja configure.",
+      "reauth_failed": "Le compte Dreame est introuvable.",
+      "reauth_successful": "Le compte Dreame a ete reconnecte."
     }
   },
   "options": {
@@ -84,6 +93,38 @@
       },
       "display_text": {
         "name": "Texte afficheur"
+      },
+      "cloud_status": {
+        "name": "Etat du cloud",
+        "state": {
+          "ok": "OK",
+          "degraded": "Degrade",
+          "error": "Erreur",
+          "auth_error": "Erreur d'authentification"
+        }
+      },
+      "last_error": {
+        "name": "Derniere erreur cloud"
+      },
+      "consecutive_failures": {
+        "name": "Echecs consecutifs"
+      },
+      "missing_properties": {
+        "name": "Proprietes manquantes"
+      },
+      "last_successful_update": {
+        "name": "Derniere mise a jour reussie"
+      },
+      "response_time": {
+        "name": "Temps de reponse du cloud"
+      },
+      "temperature_status": {
+        "name": "Etat de la temperature",
+        "state": {
+          "ok": "OK",
+          "not_reported": "Non fournie par l'appareil",
+          "missing": "Absente de la reponse cloud"
+        }
       }
     },
     "switch": {
@@ -101,6 +142,43 @@
       "led_brightness": {
         "name": "Luminosite LED"
       }
+    },
+    "binary_sensor": {
+      "cloud_connection": {
+        "name": "Connexion cloud"
+      }
+    }
+  },
+  "services": {
+    "test_connection": {
+      "name": "Tester la connexion",
+      "description": "Execute un diagnostic en direct du cloud Dreame et du purificateur, puis renvoie un rapport.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Entree de configuration",
+          "description": "L'entree de configuration Dreame FP10. Facultatif lorsqu'une seule entree est configuree."
+        }
+      }
+    },
+    "read_properties": {
+      "name": "Lire les proprietes brutes",
+      "description": "Lit les proprietes MiOT brutes du purificateur et renvoie leurs valeurs et codes d'erreur.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Entree de configuration",
+          "description": "L'entree de configuration Dreame FP10. Facultatif lorsqu'une seule entree est configuree."
+        },
+        "properties": {
+          "name": "Proprietes",
+          "description": "Liste facultative de chaines siid.piid, par exemple [\"3.3\", \"3.2\"]. Par defaut, toutes les proprietes du FP10."
+        }
+      }
+    }
+  },
+  "issues": {
+    "device_unreachable": {
+      "title": "Purificateur Dreame FP10 injoignable",
+      "description": "Home Assistant n'a pas pu lire les donnees de {name} pendant {count} sondages consecutifs. Dernier type d'erreur : {error}. Ouvrez les entites de diagnostic de l'integration ou telechargez les diagnostics pour investiguer."
     }
   }
 }

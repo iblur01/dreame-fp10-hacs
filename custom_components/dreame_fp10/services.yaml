@@ -1,0 +1,20 @@
+test_connection:
+  fields:
+    config_entry_id:
+      required: false
+      selector:
+        config_entry:
+          integration: dreame_fp10
+
+read_properties:
+  fields:
+    config_entry_id:
+      required: false
+      selector:
+        config_entry:
+          integration: dreame_fp10
+    properties:
+      required: false
+      example: '["3.3", "3.2"]'
+      selector:
+        object:

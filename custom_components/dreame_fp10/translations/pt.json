@@ -17,6 +17,13 @@
         "data": {
           "did": "Dispositivo"
         }
+      },
+      "reauth_confirm": {
+        "title": "Reconectar conta Dreame",
+        "description": "A nuvem Dreame rejeitou as credenciais de {username}. Introduza a palavra-passe atual para reconectar o purificador.",
+        "data": {
+          "password": "Palavra-passe"
+        }
       }
     },
     "error": {
@@ -25,7 +32,9 @@
       "no_supported_devices": "Nenhum purificador de ar Dreame FP10 compatível encontrado nesta conta."
     },
     "abort": {
-      "already_configured": "Este purificador já está configurado."
+      "already_configured": "Este purificador já está configurado.",
+      "reauth_failed": "A conta Dreame nao foi encontrada.",
+      "reauth_successful": "A conta Dreame foi reconectada."
     }
   },
   "options": {
@@ -84,6 +93,38 @@
       },
       "display_text": {
         "name": "Texto do visor"
+      },
+      "cloud_status": {
+        "name": "Estado da nuvem",
+        "state": {
+          "ok": "OK",
+          "degraded": "Degradado",
+          "error": "Erro",
+          "auth_error": "Erro de autenticacao"
+        }
+      },
+      "last_error": {
+        "name": "Ultimo erro da nuvem"
+      },
+      "consecutive_failures": {
+        "name": "Falhas consecutivas"
+      },
+      "missing_properties": {
+        "name": "Propriedades em falta"
+      },
+      "last_successful_update": {
+        "name": "Ultima atualizacao bem-sucedida"
+      },
+      "response_time": {
+        "name": "Tempo de resposta da nuvem"
+      },
+      "temperature_status": {
+        "name": "Estado da temperatura",
+        "state": {
+          "ok": "OK",
+          "not_reported": "Nao comunicada pelo dispositivo",
+          "missing": "Em falta na resposta da nuvem"
+        }
       }
     },
     "switch": {
@@ -101,6 +142,43 @@
       "led_brightness": {
         "name": "Brilho do LED"
       }
+    },
+    "binary_sensor": {
+      "cloud_connection": {
+        "name": "Ligacao a nuvem"
+      }
+    }
+  },
+  "services": {
+    "test_connection": {
+      "name": "Testar ligacao",
+      "description": "Executa um diagnostico em direto da nuvem Dreame e do purificador e devolve um relatorio.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Entrada de configuracao",
+          "description": "A entrada de configuracao Dreame FP10. Opcional quando apenas uma entrada esta configurada."
+        }
+      }
+    },
+    "read_properties": {
+      "name": "Ler propriedades em bruto",
+      "description": "Le propriedades MiOT em bruto do purificador e devolve valores e codigos de erro.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Entrada de configuracao",
+          "description": "A entrada de configuracao Dreame FP10. Opcional quando apenas uma entrada esta configurada."
+        },
+        "properties": {
+          "name": "Propriedades",
+          "description": "Lista opcional de cadeias siid.piid, por exemplo [\"3.3\", \"3.2\"]. Por predefinicao, todas as propriedades do FP10."
+        }
+      }
+    }
+  },
+  "issues": {
+    "device_unreachable": {
+      "title": "Purificador Dreame FP10 inacessivel",
+      "description": "O Home Assistant nao conseguiu ler dados de {name} durante {count} sondagens consecutivas. Ultimo tipo de erro: {error}. Abra as entidades de diagnostico da integracao ou transfira os diagnosticos para investigar."
     }
   }
 }

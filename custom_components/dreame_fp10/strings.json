@@ -17,6 +17,13 @@
         "data": {
           "did": "Device"
         }
+      },
+      "reauth_confirm": {
+        "title": "Reconnect Dreame account",
+        "description": "The Dreame Cloud rejected the credentials for {username}. Enter the current password to reconnect the purifier.",
+        "data": {
+          "password": "Password"
+        }
       }
     },
     "error": {
@@ -25,7 +32,9 @@
       "no_supported_devices": "No supported Dreame FP10 air purifier was found on this account."
     },
     "abort": {
-      "already_configured": "This purifier is already configured."
+      "already_configured": "This purifier is already configured.",
+      "reauth_failed": "The Dreame account could not be found.",
+      "reauth_successful": "The Dreame account was reconnected."
     }
   },
   "options": {
@@ -84,6 +93,43 @@
       },
       "display_text": {
         "name": "Display text"
+      },
+      "cloud_status": {
+        "name": "Cloud status",
+        "state": {
+          "ok": "OK",
+          "degraded": "Degraded",
+          "error": "Error",
+          "auth_error": "Authentication error"
+        }
+      },
+      "last_error": {
+        "name": "Last cloud error"
+      },
+      "consecutive_failures": {
+        "name": "Consecutive failures"
+      },
+      "missing_properties": {
+        "name": "Missing properties"
+      },
+      "last_successful_update": {
+        "name": "Last successful update"
+      },
+      "response_time": {
+        "name": "Cloud response time"
+      },
+      "temperature_status": {
+        "name": "Temperature status",
+        "state": {
+          "ok": "OK",
+          "not_reported": "Not reported by device",
+          "missing": "Missing from cloud response"
+        }
+      }
+    },
+    "binary_sensor": {
+      "cloud_connection": {
+        "name": "Cloud connection"
       }
     },
     "switch": {
@@ -101,6 +147,38 @@
       "led_brightness": {
         "name": "LED brightness"
       }
+    }
+  },
+  "services": {
+    "test_connection": {
+      "name": "Test connection",
+      "description": "Run a live diagnostic against Dreame Cloud and the purifier, then return a report.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Config entry",
+          "description": "The Dreame FP10 config entry. Optional when only one entry is configured."
+        }
+      }
+    },
+    "read_properties": {
+      "name": "Read raw properties",
+      "description": "Read raw MiOT properties from the purifier and return their values and error codes.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Config entry",
+          "description": "The Dreame FP10 config entry. Optional when only one entry is configured."
+        },
+        "properties": {
+          "name": "Properties",
+          "description": "Optional list of siid.piid strings, for example [\"3.3\", \"3.2\"]. Defaults to every FP10 property."
+        }
+      }
+    }
+  },
+  "issues": {
+    "device_unreachable": {
+      "title": "Dreame FP10 purifier unreachable",
+      "description": "Home Assistant could not read data from {name} for {count} consecutive polls. Last error type: {error}. Open the integration diagnostic entities or download diagnostics to investigate."
     }
   }
 }

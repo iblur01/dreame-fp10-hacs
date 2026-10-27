@@ -21,7 +21,7 @@ MIN_SCAN_INTERVAL = 5
 MAX_SCAN_INTERVAL = 60
 CONF_SCAN_INTERVAL = "scan_interval"
 
-PLATFORMS = ["fan", "sensor", "switch", "number"]
+PLATFORMS = ["fan", "sensor", "switch", "number", "binary_sensor"]
 
 FP10_MODE_AUTO = 0
 FP10_MODE_SLEEP = 2

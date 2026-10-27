@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Mapping
 from typing import Any
 
 import voluptuous as vol
-
 from homeassistant import config_entries
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
 
@@ -121,6 +121,8 @@ class DreameFP10ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     self._login_data = user_input
                     self._devices = supported_devices
                     return await self.async_step_device()
+            finally:
+                await self.hass.async_add_executor_job(api.close)
 
         return self.async_show_form(
             step_id="user",
@@ -167,6 +169,7 @@ class DreameFP10ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     [
                         {"siid": 2, "piid": 1},
                         {"siid": 2, "piid": 3},
+                        {"siid": 3, "piid": 3},
                         {"siid": 3, "piid": 5},
                     ],
                     device.get("bindDomain"),
@@ -185,18 +188,63 @@ class DreameFP10ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         data=_entry_data(self._login_data, device),
                         options={CONF_SCAN_INTERVAL: DEFAULT_SCAN_INTERVAL.seconds},
                     )
+            finally:
+                await self.hass.async_add_executor_job(api.close)
 
         return self.async_show_form(
             step_id="device",
-            data_schema=vol.Schema(
-                {vol.Required(CONF_DID): vol.In(device_options)}
-            ),
+            data_schema=vol.Schema({vol.Required(CONF_DID): vol.In(device_options)}),
+            errors=errors,
+        )
+
+    async def async_step_reauth(
+        self, entry_data: Mapping[str, Any]
+    ) -> config_entries.ConfigFlowResult:
+        """Start the reauthentication flow."""
+        return await self.async_step_reauth_confirm()
+
+    async def async_step_reauth_confirm(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.ConfigFlowResult:
+        """Ask for a new Dreame password after an authentication failure."""
+        entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
+        if entry is None:
+            return self.async_abort(reason="reauth_failed")
+
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            api = DreameCloudAPI(
+                entry.data[CONF_USERNAME],
+                user_input[CONF_PASSWORD],
+                entry.data.get(CONF_COUNTRY, DEFAULT_COUNTRY),
+            )
+            try:
+                await self.hass.async_add_executor_job(api.login)
+                await self.hass.async_add_executor_job(api.get_devices)
+            except DreameFP10AuthError:
+                errors["base"] = "invalid_auth"
+            except DreameFP10Error as ex:
+                _LOGGER.debug("Dreame FP10 reauthentication failed: %s", ex)
+                errors["base"] = "cannot_connect"
+            else:
+                return self.async_update_reload_and_abort(
+                    entry,
+                    data_updates={CONF_PASSWORD: user_input[CONF_PASSWORD]},
+                    reason="reauth_successful",
+                )
+            finally:
+                await self.hass.async_add_executor_job(api.close)
+
+        return self.async_show_form(
+            step_id="reauth_confirm",
+            data_schema=vol.Schema({vol.Required(CONF_PASSWORD): str}),
+            description_placeholders={"username": entry.data[CONF_USERNAME]},
             errors=errors,
         )
 
 
-class DreameFP10OptionsFlow(config_entries.OptionsFlow):
-    """Handle Dreame FP10 options."""
+class DreameFP10OptionsFlow(config_entries.OptionsFlowWithReload):
+    """Handle Dreame FP10 options and reload after a change."""
 
     def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
         self._config_entry = config_entry

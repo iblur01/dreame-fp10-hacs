@@ -17,6 +17,13 @@
         "data": {
           "did": "Gerät"
         }
+      },
+      "reauth_confirm": {
+        "title": "Dreame-Konto erneut verbinden",
+        "description": "Die Dreame Cloud hat die Zugangsdaten fur {username} abgelehnt. Gib das aktuelle Passwort ein, um den Luftreiniger erneut zu verbinden.",
+        "data": {
+          "password": "Passwort"
+        }
       }
     },
     "error": {
@@ -25,7 +32,9 @@
       "no_supported_devices": "Es wurde kein unterstützter Dreame FP10 Luftreiniger für dieses Konto gefunden."
     },
     "abort": {
-      "already_configured": "Dieser Luftreiniger ist bereits konfiguriert."
+      "already_configured": "Dieser Luftreiniger ist bereits konfiguriert.",
+      "reauth_failed": "Das Dreame-Konto wurde nicht gefunden.",
+      "reauth_successful": "Das Dreame-Konto wurde erneut verbunden."
     }
   },
   "options": {
@@ -84,6 +93,38 @@
       },
       "display_text": {
         "name": "Anzeigetext"
+      },
+      "cloud_status": {
+        "name": "Cloud-Status",
+        "state": {
+          "ok": "OK",
+          "degraded": "Beeintrachtigt",
+          "error": "Fehler",
+          "auth_error": "Authentifizierungsfehler"
+        }
+      },
+      "last_error": {
+        "name": "Letzter Cloud-Fehler"
+      },
+      "consecutive_failures": {
+        "name": "Aufeinanderfolgende Fehler"
+      },
+      "missing_properties": {
+        "name": "Fehlende Eigenschaften"
+      },
+      "last_successful_update": {
+        "name": "Letzte erfolgreiche Aktualisierung"
+      },
+      "response_time": {
+        "name": "Cloud-Antwortzeit"
+      },
+      "temperature_status": {
+        "name": "Temperaturstatus",
+        "state": {
+          "ok": "OK",
+          "not_reported": "Vom Gerat nicht gemeldet",
+          "missing": "Fehlt in der Cloud-Antwort"
+        }
       }
     },
     "switch": {
@@ -101,6 +142,43 @@
       "led_brightness": {
         "name": "LED-Helligkeit"
       }
+    },
+    "binary_sensor": {
+      "cloud_connection": {
+        "name": "Cloud-Verbindung"
+      }
+    }
+  },
+  "services": {
+    "test_connection": {
+      "name": "Verbindung testen",
+      "description": "Fuhrt eine Live-Diagnose der Dreame Cloud und des Luftreinigers aus und gibt einen Bericht zuruck.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Konfigurationseintrag",
+          "description": "Der Dreame-FP10-Konfigurationseintrag. Optional, wenn nur ein Eintrag konfiguriert ist."
+        }
+      }
+    },
+    "read_properties": {
+      "name": "Rohe Eigenschaften lesen",
+      "description": "Liest rohe MiOT-Eigenschaften des Luftreinigers und gibt Werte und Fehlercodes zuruck.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Konfigurationseintrag",
+          "description": "Der Dreame-FP10-Konfigurationseintrag. Optional, wenn nur ein Eintrag konfiguriert ist."
+        },
+        "properties": {
+          "name": "Eigenschaften",
+          "description": "Optionale Liste von siid.piid-Zeichenfolgen, zum Beispiel [\"3.3\", \"3.2\"]. Standardmassig alle FP10-Eigenschaften."
+        }
+      }
+    }
+  },
+  "issues": {
+    "device_unreachable": {
+      "title": "Dreame FP10 Luftreiniger nicht erreichbar",
+      "description": "Home Assistant konnte {count} aufeinanderfolgende Abfragen lang keine Daten von {name} lesen. Letzter Fehlertyp: {error}. Offne die Diagnoseentitaten der Integration oder lade die Diagnose herunter, um die Ursache zu untersuchen."
     }
   }
 }
