@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
+from functools import partial
 from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
@@ -53,7 +55,9 @@ from .state import (
     TEMPERATURE_STATUS_OK,
     TEMPERATURE_STATUS_UNKNOWN,
     MergedState,
+    normalize_led_brightness,
     merge_state,
+    manual_speed_properties,
     sanitize_error_message,
 )
 
@@ -71,10 +75,7 @@ FP10_PROPERTIES: dict[str, tuple[int, int]] = {
     "temperature": (3, 3),
     "air_quality_level": (3, 4),
     "pm25": (3, 5),
-    "tvoc": (3, 6),
-    "tvoc_mirror": (3, 9),
-    "display_index": (3, 12),
-    "display_text": (3, 13),
+    "pm10": (3, 6),
     "hepa_life": (4, 1),
     "hepa_days": (4, 2),
     "carbon_life": (4, 5),
@@ -83,6 +84,12 @@ FP10_PROPERTIES: dict[str, tuple[int, int]] = {
     "child_lock": (6, 10),
     "led_breathe": (6, 12),
     "sound": (6, 17),
+    "temperature_unit": (6, 4),
+    "weight_unit": (6, 11),
+    # U2513 SelfCleaningPage status.
+    "self_cleaning_status": (7, 1),
+    # U2513 common timer countdown; advanced time-of-day scheduler is separate.
+    "timer_hours": (6, 8),
 }
 
 PROPERTY_BY_ID: dict[tuple[int, int], str] = {
@@ -210,6 +217,7 @@ class DreameFP10Coordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.temperature = TemperatureDiagnostics()
         self.property_last_seen: dict[str, datetime] = {}
         self._closing = False
+        self._schedule_lock = asyncio.Lock()
 
     @classmethod
     def from_entry_data(
@@ -529,8 +537,40 @@ class DreameFP10Coordinator(DataUpdateCoordinator[dict[str, Any]]):
         # Reflect the change immediately; the cloud read lags the device.
         self._apply_optimistic({"power": FP10_POWER_ON if on else FP10_POWER_STANDBY})
 
+    async def async_start_auto_clean(self) -> None:
+        """Request the U2513 self-clean action; completion is not confirmed."""
+        await self._async_call(
+            self.api.start_auto_clean,
+            self.device.did,
+            self.device.host,
+        )
+
+    async def async_manage_advanced_schedule(self, **schedule: Any) -> dict[str, Any]:
+        """Read-modify-write one U2513 advanced schedule through the cloud API."""
+        async with self._schedule_lock:
+            return await self._async_call(
+                partial(
+                    self.api.manage_advanced_schedule,
+                    host=self.device.host,
+                    **schedule,
+                ),
+                self.device.did,
+            )
+
     async def async_set_mode(self, mode: int) -> None:
         """Set FP10 purifier mode."""
+        if mode == FP10_MODE_MANUAL:
+            speed = self.data.get("fan_speed") if self.data else None
+            if not isinstance(speed, int) or not FP10_SPEED_MIN <= speed <= FP10_SPEED_MAX:
+                speed = 5
+            await self.async_set_properties(
+                [
+                    {"siid": 2, "piid": 3, "value": mode},
+                    {"siid": 2, "piid": 4, "value": speed},
+                ],
+                optimistic_data={"mode": mode, "fan_speed": speed},
+            )
+            return
         await self.async_set_properties(
             [{"siid": 2, "piid": 3, "value": mode}],
             optimistic_data={"mode": mode},
@@ -539,23 +579,31 @@ class DreameFP10Coordinator(DataUpdateCoordinator[dict[str, Any]]):
     async def async_set_fan_speed(self, speed: int) -> None:
         """Set manual fan speed, forcing manual mode first."""
         clamped = max(FP10_SPEED_MIN, min(FP10_SPEED_MAX, speed))
+        properties = manual_speed_properties(
+            self.data.get("mode") if self.data else None,
+            clamped,
+        )
+        optimistic_data = {"mode": FP10_MODE_MANUAL, "fan_speed": clamped}
+        if len(properties) == 1:
+            optimistic_data.pop("mode")
         await self.async_set_properties(
-            [
-                {"siid": 2, "piid": 3, "value": FP10_MODE_MANUAL},
-                {"siid": 2, "piid": 4, "value": clamped},
-            ],
-            optimistic_data={
-                "mode": FP10_MODE_MANUAL,
-                "fan_speed": clamped,
-            },
+            properties,
+            optimistic_data=optimistic_data,
         )
 
     async def async_set_led_brightness(self, brightness: int) -> None:
-        """Set LED brightness."""
-        value = max(0, min(100, brightness))
+        """Set one U2513 ambient brightness level (0, 30, 50 or 80)."""
+        value = normalize_led_brightness(brightness)
+        properties: list[dict[str, Any]] = []
+        optimistic_data = {"led_brightness": value}
+        if self.data and self.data.get("led_breathe") == 1:
+            # The U2513 app exits breathing mode before changing brightness.
+            properties.append({"siid": 6, "piid": 12, "value": 0})
+            optimistic_data["led_breathe"] = 0
+        properties.append({"siid": 6, "piid": 6, "value": value})
         await self.async_set_properties(
-            [{"siid": 6, "piid": 6, "value": value}],
-            optimistic_data={"led_brightness": value},
+            properties,
+            optimistic_data=optimistic_data,
         )
 
     async def async_set_bool(self, key: str, enabled: bool) -> None:

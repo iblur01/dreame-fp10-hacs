@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import itertools
 import logging
+import re
 import threading
 import time
 from dataclasses import dataclass, field
@@ -19,6 +20,11 @@ DREAME_USER_AGENT = "Dreame_Smarthome/2.1.9 (iPhone; iOS 18.4.1; Scale/3.00)"
 DREAME_AUTH_BASIC = "Basic ZHJlYW1lX2FwcHYxOkFQXmR2QHpAU1FZVnhOODg="
 DREAME_TENANT_ID = "000000"
 DREAME_RLC = "1c80b3787b2266776bcdc481f37d8fa42ba10a30af81a6df-1"
+
+MAX_ADVANCED_SCHEDULES = 5
+SCHEDULE_LIST_SEPARATOR = "||"
+SCHEDULE_FIELD_SEPARATOR = "|"
+_SCHEDULE_ACTION_TAIL_DEFAULT = "0-0-0"
 
 
 def _safe_payload_detail(payload: Any) -> str:
@@ -51,6 +57,115 @@ def _response_json(response: requests.Response, context: str) -> Any:
         raise DreameFP10ConnectionError(
             f"{context} returned invalid JSON (HTTP {response.status_code})"
         ) from ex
+
+
+def _parse_advanced_schedule_list(value: Any) -> list[str]:
+    """Parse U2513 pipeline schedule records without normalizing their fields."""
+    if value is None or value == "":
+        return []
+    if not isinstance(value, str):
+        raise ValueError("Advanced schedule property is not a string")
+    records = value.split(SCHEDULE_LIST_SEPARATOR)
+    if len(records) > MAX_ADVANCED_SCHEDULES:
+        raise ValueError("Advanced schedule property exceeds the five-slot limit")
+    if any(not record or len(record.split(SCHEDULE_FIELD_SEPARATOR)) != 8 for record in records):
+        raise ValueError("Advanced schedule is not in the U2513 pipeline format")
+    return records
+
+
+def _validate_schedule_time(value: Any, field: str) -> str:
+    """Validate and canonicalize HH:MM without accepting locale-dependent forms."""
+    if not isinstance(value, str):
+        raise ValueError(f"{field} must use HH:MM format")
+    match = re.fullmatch(r"(\d{2}):(\d{2})", value)
+    if match is None or int(match.group(1)) > 23 or int(match.group(2)) > 59:
+        raise ValueError(f"{field} must be a valid 24-hour HH:MM time")
+    return value
+
+
+def edit_advanced_schedule(
+    current: Any,
+    *,
+    operation: str,
+    slot: int,
+    name: str | None = None,
+    time: str | None = None,
+    end_time: str | None = None,
+    repeat_mask: str | None = None,
+    action: str | None = None,
+    enabled: bool | None = None,
+) -> tuple[str, int]:
+    """Apply one narrow U2513 timer edit while retaining opaque record fields."""
+    records = _parse_advanced_schedule_list(current)
+    if operation not in {"create", "update", "delete", "enable"}:
+        raise ValueError("Unsupported advanced schedule operation")
+    if not isinstance(slot, int) or isinstance(slot, bool) or not 1 <= slot <= MAX_ADVANCED_SCHEDULES:
+        raise ValueError("slot must be an integer from 1 to 5")
+
+    index = slot - 1
+    if operation == "create":
+        if index != len(records):
+            raise ValueError("create slot must be the next available schedule slot")
+        if len(records) >= MAX_ADVANCED_SCHEDULES:
+            raise ValueError("The U2513 supports at most five advanced schedules")
+        parts = [f"t{slot}", "1", "", "-1", "0", "-1", "-1", ""]
+    else:
+        if index >= len(records):
+            raise ValueError("schedule slot does not exist")
+        parts = records[index].split(SCHEDULE_FIELD_SEPARATOR)
+
+    if operation == "delete":
+        records.pop(index)
+        return SCHEDULE_LIST_SEPARATOR.join(records), len(records)
+
+    if operation == "enable":
+        if enabled is None:
+            raise ValueError("enable operation requires enabled")
+        parts[1] = "1" if enabled else "0"
+    else:
+        if not isinstance(action, str) or action not in {"on", "off"}:
+            raise ValueError("create/update requires action 'on' or 'off'")
+        if not isinstance(repeat_mask, str) or not re.fullmatch(r"[01]{8}", repeat_mask):
+            raise ValueError("repeat_mask must contain exactly eight 0/1 bits")
+        if time is None:
+            raise ValueError("create/update requires time")
+        start = _validate_schedule_time(time, "time")
+        if end_time is None:
+            trigger = f"{start}-{repeat_mask}"
+        else:
+            if action != "on":
+                raise ValueError("period schedules must use action 'on'")
+            end = _validate_schedule_time(end_time, "end_time")
+            trigger = f"{start}-{end}-{repeat_mask}"
+        if name is not None:
+            clean_name = name.strip()
+            if (
+                not clean_name
+                or SCHEDULE_FIELD_SEPARATOR in clean_name
+                or SCHEDULE_LIST_SEPARATOR in clean_name
+            ):
+                raise ValueError("name must be non-empty and may not contain timer separators")
+            parts[0] = clean_name
+        elif operation == "create":
+            parts[0] = f"t{slot}"
+        parts[2] = trigger
+        # Keep U2513-app-managed opaque fields 3–6 and the action tail.
+        previous_action_field = parts[7]
+        tail = (
+            previous_action_field.split("-", 1)[1]
+            if "-" in previous_action_field
+            else _SCHEDULE_ACTION_TAIL_DEFAULT
+        )
+        parts[7] = f"{'2' if action == 'on' else '1'}-{tail}"
+
+    encoded = SCHEDULE_FIELD_SEPARATOR.join(parts)
+    if operation == "create":
+        records.append(encoded)
+    else:
+        records[index] = encoded
+    if len(records) > MAX_ADVANCED_SCHEDULES:
+        raise ValueError("The U2513 supports at most five advanced schedules")
+    return SCHEDULE_LIST_SEPARATOR.join(records), len(records)
 
 
 class DreameFP10Error(Exception):
@@ -469,13 +584,78 @@ class DreameCloudAPI:
         """Write raw MiOT properties."""
         params = [{"did": str(did), **prop} for prop in properties]
         result = self.send_command(did, "set_properties", params, host)
-        return bool(
-            result
-            and isinstance(result, list)
-            and all(
-                isinstance(item, dict) and item.get("code", -1) == 0 for item in result
-            )
+        if not isinstance(result, list) or len(result) != len(properties):
+            return False
+        for expected, item in zip(properties, result, strict=True):
+            if not isinstance(item, dict) or item.get("code", -1) != 0:
+                return False
+            # Some cloud responses omit property IDs and acknowledge writes by
+            # position. When IDs are returned, require an exact positional match.
+            has_siid = "siid" in item
+            has_piid = "piid" in item
+            if has_siid != has_piid:
+                return False
+            if has_siid and (item["siid"], item["piid"]) != (
+                expected.get("siid"),
+                expected.get("piid"),
+            ):
+                return False
+        return True
+
+    def manage_advanced_schedule(
+        self,
+        did: str,
+        *,
+        operation: str,
+        slot: int,
+        host: str | None = None,
+        name: str | None = None,
+        time: str | None = None,
+        end_time: str | None = None,
+        repeat_mask: str | None = None,
+        action: str | None = None,
+        enabled: bool | None = None,
+    ) -> dict[str, Any]:
+        """Read-modify-write one supported U2513 timer in property 6.2."""
+        read_result = self.get_properties(str(did), [{"siid": 6, "piid": 2}], host)
+        values = read_result.values if isinstance(read_result, PropertyReadResult) else read_result
+        if not isinstance(values, dict) or (6, 2) not in values:
+            raise ValueError("Cloud did not return U2513 schedule property 6.2")
+        current = values[(6, 2)]
+        if not isinstance(current, str):
+            raise ValueError("Cloud returned a null or non-string U2513 schedule property 6.2")
+        updated, count = edit_advanced_schedule(
+            current,
+            operation=operation,
+            slot=slot,
+            name=name,
+            time=time,
+            end_time=end_time,
+            repeat_mask=repeat_mask,
+            action=action,
+            enabled=enabled,
         )
+        if updated == current:
+            return {
+                "operation": operation,
+                "slot": slot,
+                "changed": False,
+                "schedule_count": count,
+                "schedule": updated,
+            }
+        if not self.set_properties(
+            str(did), [{"siid": 6, "piid": 2, "value": updated}], host
+        ):
+            raise DreameFP10ConnectionError(
+                "Dreame Cloud rejected the U2513 advanced schedule update"
+            )
+        return {
+            "operation": operation,
+            "slot": slot,
+            "changed": True,
+            "schedule_count": count,
+            "schedule": updated,
+        }
 
     def set_power(self, did: str, on: bool, host: str | None = None) -> bool:
         """Turn the FP10 on or place it in standby."""
@@ -486,8 +666,19 @@ class DreameCloudAPI:
                 "did": str(did),
                 "siid": 2,
                 "aiid": 1,
-                "in": [{"piid": 1, "value": bool(on)}],
+                # U2513 app serializes this MIoT input as an integer: 1=on,
+                # 0=standby. Keep the numeric JSON type rather than bool.
+                "in": [{"piid": 1, "value": 1 if on else 0}],
             },
             host,
         )
         return bool(isinstance(result, dict) and result.get("code", -1) == 0)
+
+    def start_auto_clean(self, did: str, host: str | None = None) -> Any:
+        """Request the U2513 self-clean cycle (SIID 7, AIID 1)."""
+        return self.send_command(
+            did,
+            "action",
+            {"did": str(did), "siid": 7, "aiid": 1},
+            host,
+        )

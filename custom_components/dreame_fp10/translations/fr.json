@@ -56,7 +56,7 @@
             "state": {
               "auto": "Auto",
               "sleep": "Nuit",
-              "manual": "Manuel",
+              "manual": "Personnalise",
               "pet": "Animal"
             }
           }
@@ -83,16 +83,13 @@
         "name": "Vie filtre HEPA"
       },
       "hepa_days": {
-        "name": "Jours restants filtre HEPA"
+        "name": "Jours restants du filtre HEPA"
       },
       "carbon_life": {
-        "name": "Vie filtre carbone"
+        "name": "Durée de vie du bac à poils (CombBox)"
       },
       "carbon_metric": {
-        "name": "Metrique filtre carbone"
-      },
-      "display_text": {
-        "name": "Texte afficheur"
+        "name": "Jours restants du filtre à poils"
       },
       "cloud_status": {
         "name": "Etat du cloud",
@@ -125,6 +122,27 @@
           "not_reported": "Non fournie par l'appareil",
           "missing": "Absente de la reponse cloud"
         }
+      },
+      "pm10": {
+        "name": "PM10"
+      },
+      "self_cleaning_status": {
+        "name": "État d’auto-nettoyage du filtre",
+        "state": {
+          "running": "En cours",
+          "complete": "Terminé",
+          "error": "Erreur"
+        }
+      },
+      "air_quality_category": {
+        "name": "Catégorie de qualité de l’air",
+        "state": {
+          "unknown": "Inconnue",
+          "excellent": "Excellente",
+          "good": "Bonne",
+          "moderate": "Moyenne",
+          "poor": "Mauvaise"
+        }
       }
     },
     "switch": {
@@ -132,20 +150,48 @@
         "name": "Verrouillage enfant"
       },
       "sound": {
-        "name": "Son"
+        "name": "Son des touches"
       },
       "led_breathe": {
-        "name": "LED respiration"
+        "name": "Mode respiration de l'eclairage ambiant"
       }
     },
     "number": {
       "led_brightness": {
-        "name": "Luminosite LED"
+        "name": "Ancienne luminosité numérique (valeurs prises en charge uniquement)"
+      },
+      "timer_hours": {
+        "name": "Compte à rebours avant arrêt"
       }
     },
     "binary_sensor": {
       "cloud_connection": {
         "name": "Connexion cloud"
+      }
+    },
+    "select": {
+      "ambient_brightness": {
+        "name": "Niveau de luminosité ambiante",
+        "options": {
+          "off": "Arrêt",
+          "low": "Faible",
+          "natural": "Naturel",
+          "bright": "Lumineux"
+        }
+      },
+      "temperature_unit": {
+        "name": "Unité de température affichée",
+        "options": {
+          "celsius": "Celsius",
+          "fahrenheit": "Fahrenheit"
+        }
+      },
+      "weight_unit": {
+        "name": "Unité de poids affichée",
+        "options": {
+          "kilograms": "Kilogrammes",
+          "pounds": "Livres"
+        }
       }
     }
   },
@@ -171,6 +217,58 @@
         "properties": {
           "name": "Proprietes",
           "description": "Liste facultative de chaines siid.piid, par exemple [\"3.3\", \"3.2\"]. Par defaut, toutes les proprietes du FP10."
+        }
+      }
+    },
+    "start_auto_clean": {
+      "name": "Démarrer l’auto-nettoyage du filtre",
+      "description": "Demande l’auto-nettoyage U2513. La réussite physique est indiquée par le capteur d’état, pas par la réponse de commande.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Entrée de configuration",
+          "description": "Entrée Dreame FP10. Facultative si une seule entrée est configurée."
+        }
+      }
+    },
+    "manage_schedule": {
+      "name": "Gérer une programmation",
+      "description": "Lit, modifie puis écrit une programmation horaire fixe U2513. Le service ne lance ni ne teste la programmation sur l’appareil.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Config entry",
+          "description": "The Dreame FP10 config entry. Optional when only one entry is configured."
+        },
+        "operation": {
+          "name": "Operation",
+          "description": "Create, update, delete or enable one schedule."
+        },
+        "slot": {
+          "name": "Slot",
+          "description": "One-based slot 1–5. Create uses the next slot; deleting compacts later slots."
+        },
+        "name": {
+          "name": "Name",
+          "description": "Optional schedule name."
+        },
+        "time": {
+          "name": "Start time",
+          "description": "Start time in 24-hour HH:MM format."
+        },
+        "end_time": {
+          "name": "End time",
+          "description": "Optional paired power-off time; only valid with action on."
+        },
+        "repeat_mask": {
+          "name": "Repeat mask",
+          "description": "Eight 0/1 digits. Once 10000000, daily 01111111, weekdays 01111100, weekend 00000011."
+        },
+        "action": {
+          "name": "Action",
+          "description": "Power on or off."
+        },
+        "enabled": {
+          "name": "Enabled",
+          "description": "Whether the selected schedule is enabled."
         }
       }
     }

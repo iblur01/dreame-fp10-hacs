@@ -31,7 +31,7 @@ purifier is unreachable, so they can explain the failure:
   `none`) with message and timestamp attributes.
 - `sensor.<device>_consecutive_failures` — number of failed polls in a row.
 - `sensor.<device>_missing_properties` — count of entity-backed properties
-  missing from the last successful response, with the list, internal-only keys,
+  missing from the last successful response, with the list, optional properties,
   per-property error codes and last-seen times. It is `unknown` after a failed
   poll, because the response never arrived.
 - `sensor.<device>_last_successful_update` — timestamp of the last poll that
@@ -62,10 +62,57 @@ the purifier name or model are kept to make support easier.
 
 ## Actions
 
-The actions are admin-only and return a response. In **Developer tools →
-Actions**, select the action, enable **Return response**, call it, and inspect
+The diagnostic actions are admin-only and return a response. In **Developer
+tools → Actions**, select one, enable **Return response**, call it, and inspect
 the YAML result. They also work while the config entry is in `SETUP_RETRY` or
-`SETUP_ERROR`, which is when a connection test is most useful.
+`SETUP_ERROR`, which is when a connection test is most useful. The
+`start_auto_clean` control action requests self-cleaning, has no response
+payload, and requires a loaded config entry. Its historic service ID is retained.
+
+### `dreame_fp10.start_auto_clean`
+
+Requests U2513 filter self-cleaning (`SIID 7`, `AIID 1`) using the configured
+device ID. The call is available only while that config entry is loaded. A
+normal cloud/API return does not confirm physical success; inspect the `7.1`
+status sensor. No stop or filter-reset action is exposed.
+
+```yaml
+action: dreame_fp10.start_auto_clean
+data: {}
+```
+
+The U2513 self-cleaning page reads property `7.1`. Its UI interprets `1` as
+running, `2` as success, and `3` as anomaly; other values remain unknown. The
+status sensor exposes those states and retains the raw value in its attributes.
+The start action's response is not proof of physical success. AIID 2 is used by
+the result flow to reset self-cleaning state and is not exposed.
+
+The simple countdown property `6.8` is a writable integer-hour number from
+`0` to `12` (`0` is off). Property `6.2` exposes only fixed-time power on/off
+schedules through the action below. The color temperature property `6.13` is
+statically present, but absent from the live U2513 screen, so it is not exposed.
+
+### `dreame_fp10.manage_schedule`
+
+Reads property `6.2`, updates one pipeline-format slot and writes the complete
+list back. Slots are one-based and limited to five. Create uses the next slot;
+delete compacts later slots. Updates preserve condition fields and opaque action
+tail values already present in that record. The supported trigger is a fixed
+time with an eight-bit repeat mask; supported actions are power on/off. With
+`end_time`, only an on schedule is accepted, matching the app's paired
+power-on/power-off form. Conditional sensor triggers and other action types are
+not exposed. No schedule was created or tested against the device.
+
+```yaml
+action: dreame_fp10.manage_schedule
+data:
+  operation: create
+  slot: 1
+  name: Evening
+  time: "22:30"
+  repeat_mask: "01111100"
+  action: on
+```
 
 ### `dreame_fp10.test_connection`
 
@@ -122,9 +169,9 @@ Each entry in `raw_properties` contains `siid`, `piid`, `key`, `value` and
 
 A partial response (some values returned, some missing) is not an error: the
 last known values are kept and missing entity-backed keys are reported as
-`degraded` with their last-seen timestamps. Missing internal-only keys
-(`tvoc_mirror`, `display_index`) are listed separately and do not mark the
-snapshot as degraded.
+`degraded` with their last-seen timestamps. The experimental PM10 property can be absent without degrading overall device
+status. Other generic properties are omitted from polling; request an explicit
+`siid.piid` pair through `read_properties` if needed.
 
 The unreachable repair issue is removed after a successful poll, when the entry
 is unloaded or deleted, and when authentication fails (the reauthentication flow

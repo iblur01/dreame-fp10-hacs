@@ -13,10 +13,9 @@ from typing import Any
 
 TEMPERATURE_KEY = "temperature"
 
-# Internal properties are polled for diagnostics but are not exposed as
-# entities. Missing values for these keys must not flag the whole snapshot as
-# degraded.
-INTERNAL_PROPERTY_KEYS = frozenset({"tvoc_mirror", "display_index"})
+# Generic properties that are not part of the U2513 page. PM10 is retained as
+# an optional experimental entity, but its absence must not degrade the device.
+INTERNAL_PROPERTY_KEYS = frozenset({"pm10"})
 
 TEMPERATURE_STATUS_UNKNOWN = "unknown"
 TEMPERATURE_STATUS_OK = "ok"
@@ -38,6 +37,68 @@ CLOUD_STATUS_OPTIONS = [
     CLOUD_STATUS_ERROR,
     CLOUD_STATUS_AUTH_ERROR,
 ]
+
+SELF_CLEANING_STATUS_OPTIONS = ["running", "complete", "error"]
+AIR_QUALITY_CATEGORY_OPTIONS = ["unknown", "excellent", "good", "moderate", "poor"]
+AMBIENT_BRIGHTNESS_LEVELS = (0, 30, 50, 80)
+
+
+def self_cleaning_status(value: Any) -> str | None:
+    """Map the U2513 SelfCleaningPage status values without guessing defaults."""
+    try:
+        state = int(value)
+    except (TypeError, ValueError):
+        return None
+    return {1: "running", 2: "complete", 3: "error"}.get(state)
+
+
+def air_quality_category(value: Any) -> str:
+    """Decode the U2513 AirQualityKey used by the app's quality display."""
+    try:
+        state = int(value)
+    except (TypeError, ValueError):
+        return "unknown"
+    return {-1: "unknown", 1: "excellent", 2: "good", 3: "moderate", 4: "poor"}.get(
+        state, "unknown"
+    )
+
+
+def normalize_led_brightness(value: Any) -> int:
+    """Snap legacy numeric brightness requests to U2513's supported levels."""
+    try:
+        requested = float(value)
+    except (TypeError, ValueError):
+        requested = 30
+    return min(AMBIENT_BRIGHTNESS_LEVELS, key=lambda level: abs(level - requested))
+
+
+def fan_percentage_for_mode(mode: Any, speed: Any) -> int | None:
+    """Expose the stored speed only in U2513 modes that display it as current."""
+    try:
+        mode_value = int(mode)
+        speed_value = int(speed)
+    except (TypeError, ValueError):
+        return None
+    if mode_value not in (0, 3) or not 1 <= speed_value <= 10:
+        return None
+    return speed_value * 10
+
+
+def manual_speed_properties(mode: Any, speed: Any) -> list[dict[str, int]]:
+    """Build the U2513 custom-mode write used by its slider."""
+    try:
+        current_mode = int(mode)
+    except (TypeError, ValueError):
+        current_mode = -1
+    try:
+        speed_value = max(1, min(10, int(speed)))
+    except (TypeError, ValueError):
+        speed_value = 5
+    props = []
+    if current_mode != 3:
+        props.append({"siid": 2, "piid": 3, "value": 3})
+    props.append({"siid": 2, "piid": 4, "value": speed_value})
+    return props
 
 _SENSITIVE_PATTERN = re.compile(
     r"(?i)([\"']?\b(?:access_token|accessToken|refresh_token|refreshToken|token|"

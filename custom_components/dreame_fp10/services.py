@@ -42,6 +42,8 @@ from .state import (
 
 SERVICE_TEST_CONNECTION = "test_connection"
 SERVICE_READ_PROPERTIES = "read_properties"
+SERVICE_START_AUTO_CLEAN = "start_auto_clean"
+SERVICE_MANAGE_SCHEDULE = "manage_schedule"
 
 ENTRY_SCHEMA = vol.Schema(
     {
@@ -52,6 +54,19 @@ ENTRY_SCHEMA = vol.Schema(
 READ_PROPERTIES_SCHEMA = ENTRY_SCHEMA.extend(
     {
         vol.Optional("properties"): vol.All(cv.ensure_list, [cv.string]),
+    }
+)
+
+SCHEDULE_SCHEMA = ENTRY_SCHEMA.extend(
+    {
+        vol.Required("operation"): vol.In(("create", "update", "delete", "enable")),
+        vol.Required("slot"): vol.All(vol.Coerce(int), vol.Range(min=1, max=5)),
+        vol.Optional("name"): cv.string,
+        vol.Optional("time"): cv.string,
+        vol.Optional("end_time"): cv.string,
+        vol.Optional("repeat_mask"): cv.string,
+        vol.Optional("action"): vol.In(("on", "off")),
+        vol.Optional("enabled"): cv.boolean,
     }
 )
 
@@ -222,9 +237,15 @@ def _probe(
 
 async def async_setup_services(hass: HomeAssistant) -> None:
     """Register the diagnostic actions once per Home Assistant instance."""
-    if hass.services.has_service(
-        DOMAIN, SERVICE_TEST_CONNECTION
-    ) and hass.services.has_service(DOMAIN, SERVICE_READ_PROPERTIES):
+    if all(
+        hass.services.has_service(DOMAIN, service_name)
+        for service_name in (
+            SERVICE_TEST_CONNECTION,
+            SERVICE_READ_PROPERTIES,
+            SERVICE_START_AUTO_CLEAN,
+            SERVICE_MANAGE_SCHEDULE,
+        )
+    ):
         return
 
     async def async_test_connection(call: ServiceCall) -> ServiceResponse:
@@ -257,6 +278,43 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             specs,
         )
 
+    async def async_start_auto_clean(call: ServiceCall) -> None:
+        """Request self-cleaning for a loaded FP10 config entry."""
+        entry = _resolve_entry(hass, call.data.get(ATTR_CONFIG_ENTRY_ID))
+        coordinator = hass.data.get(DOMAIN, {}).get(entry.entry_id)
+        if coordinator is None:
+            raise ServiceValidationError(
+                "The selected Dreame FP10 entry must be loaded to start self-cleaning"
+            )
+        await coordinator.async_start_auto_clean()
+
+    async def async_manage_schedule(call: ServiceCall) -> ServiceResponse:
+        """Create, update, delete or enable one supported power schedule."""
+        entry = _resolve_entry(hass, call.data.get(ATTR_CONFIG_ENTRY_ID))
+        coordinator = hass.data.get(DOMAIN, {}).get(entry.entry_id)
+        if coordinator is None:
+            raise ServiceValidationError(
+                "The selected Dreame FP10 entry must be loaded to manage schedules"
+            )
+        args = {
+            key: call.data[key]
+            for key in (
+                "operation",
+                "slot",
+                "name",
+                "time",
+                "end_time",
+                "repeat_mask",
+                "action",
+                "enabled",
+            )
+            if key in call.data
+        }
+        try:
+            return await coordinator.async_manage_advanced_schedule(**args)
+        except ValueError as ex:
+            raise ServiceValidationError(str(ex)) from ex
+
     service.async_register_admin_service(
         hass,
         DOMAIN,
@@ -271,5 +329,20 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         SERVICE_READ_PROPERTIES,
         async_read_properties,
         schema=READ_PROPERTIES_SCHEMA,
+        supports_response=SupportsResponse.ONLY,
+    )
+    service.async_register_admin_service(
+        hass,
+        DOMAIN,
+        SERVICE_START_AUTO_CLEAN,
+        async_start_auto_clean,
+        schema=ENTRY_SCHEMA,
+    )
+    service.async_register_admin_service(
+        hass,
+        DOMAIN,
+        SERVICE_MANAGE_SCHEDULE,
+        async_manage_schedule,
+        schema=SCHEDULE_SCHEMA,
         supports_response=SupportsResponse.ONLY,
     )

@@ -56,7 +56,7 @@
             "state": {
               "auto": "Auto",
               "sleep": "Sleep",
-              "manual": "Manual",
+              "manual": "Custom",
               "pet": "Pet"
             }
           }
@@ -83,16 +83,13 @@
         "name": "HEPA filter life"
       },
       "hepa_days": {
-        "name": "HEPA filter remaining days"
+        "name": "HEPA filter days remaining"
       },
       "carbon_life": {
-        "name": "Carbon filter life"
+        "name": "Hair-trap (CombBox) filter life"
       },
       "carbon_metric": {
-        "name": "Carbon filter metric"
-      },
-      "display_text": {
-        "name": "Display text"
+        "name": "Hair-trap filter days remaining"
       },
       "cloud_status": {
         "name": "Cloud status",
@@ -125,6 +122,27 @@
           "not_reported": "Not reported by device",
           "missing": "Missing from cloud response"
         }
+      },
+      "pm10": {
+        "name": "PM10"
+      },
+      "self_cleaning_status": {
+        "name": "Filter self-cleaning status",
+        "state": {
+          "running": "Running",
+          "complete": "Complete",
+          "error": "Error"
+        }
+      },
+      "air_quality_category": {
+        "name": "Air quality category",
+        "state": {
+          "unknown": "Unknown",
+          "excellent": "Excellent",
+          "good": "Good",
+          "moderate": "Average",
+          "poor": "Poor"
+        }
       }
     },
     "binary_sensor": {
@@ -137,15 +155,43 @@
         "name": "Child lock"
       },
       "sound": {
-        "name": "Sound"
+        "name": "Key sound"
       },
       "led_breathe": {
-        "name": "LED breathe"
+        "name": "Ambient light breathing mode"
       }
     },
     "number": {
       "led_brightness": {
-        "name": "LED brightness"
+        "name": "Legacy numeric brightness (snaps to supported levels)"
+      },
+      "timer_hours": {
+        "name": "Power-off countdown"
+      }
+    },
+    "select": {
+      "ambient_brightness": {
+        "name": "Ambient brightness level",
+        "options": {
+          "off": "Off",
+          "low": "Low",
+          "natural": "Natural",
+          "bright": "Bright"
+        }
+      },
+      "temperature_unit": {
+        "name": "Temperature display unit",
+        "options": {
+          "celsius": "Celsius",
+          "fahrenheit": "Fahrenheit"
+        }
+      },
+      "weight_unit": {
+        "name": "Weight display unit",
+        "options": {
+          "kilograms": "Kilograms",
+          "pounds": "Pounds"
+        }
       }
     }
   },
@@ -171,6 +217,58 @@
         "properties": {
           "name": "Properties",
           "description": "Optional list of siid.piid strings, for example [\"3.3\", \"3.2\"]. Defaults to every FP10 property."
+        }
+      }
+    },
+    "start_auto_clean": {
+      "name": "Filter self-cleaning",
+      "description": "Request U2513 filter self-cleaning. Physical completion is reflected by the status sensor, not the command response.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Config entry",
+          "description": "The Dreame FP10 config entry. Optional when only one entry is configured."
+        }
+      }
+    },
+    "manage_schedule": {
+      "name": "Manage power schedule",
+      "description": "Read-modify-write one U2513 fixed-time power schedule. The service does not execute or test a schedule on the device.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Config entry",
+          "description": "The Dreame FP10 config entry. Optional when only one entry is configured."
+        },
+        "operation": {
+          "name": "Operation",
+          "description": "Create, update, delete or enable one schedule."
+        },
+        "slot": {
+          "name": "Slot",
+          "description": "One-based slot 1–5. Create uses the next slot; deleting compacts later slots."
+        },
+        "name": {
+          "name": "Name",
+          "description": "Optional schedule name."
+        },
+        "time": {
+          "name": "Start time",
+          "description": "Start time in 24-hour HH:MM format."
+        },
+        "end_time": {
+          "name": "End time",
+          "description": "Optional paired power-off time; only valid with action on."
+        },
+        "repeat_mask": {
+          "name": "Repeat mask",
+          "description": "Eight 0/1 digits. Once 10000000, daily 01111111, weekdays 01111100, weekend 00000011."
+        },
+        "action": {
+          "name": "Action",
+          "description": "Power on or off."
+        },
+        "enabled": {
+          "name": "Enabled",
+          "description": "Whether the selected schedule is enabled."
         }
       }
     }

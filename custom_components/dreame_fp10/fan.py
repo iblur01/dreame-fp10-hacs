@@ -25,6 +25,7 @@ from .const import (
 )
 from .coordinator import DreameFP10Coordinator
 from .entity import DreameFP10Entity
+from .state import fan_percentage_for_mode
 
 
 async def async_setup_entry(
@@ -69,10 +70,10 @@ class DreameFP10Fan(DreameFP10Entity, FanEntity):
         """Return fan speed percentage."""
         if not self.is_on:
             return 0
-        speed = self.coordinator.data.get("fan_speed")
-        if not isinstance(speed, int):
-            return None
-        return max(0, min(100, speed * 10))
+        return fan_percentage_for_mode(
+            self.coordinator.data.get("mode"),
+            self.coordinator.data.get("fan_speed"),
+        )
 
     @property
     def percentage_step(self) -> int:

@@ -13,6 +13,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from .const import DOMAIN
 from .coordinator import DreameFP10Coordinator
 from .entity import DreameFP10Entity
+from .state import normalize_led_brightness
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -25,10 +26,20 @@ NUMBERS: tuple[DreameFP10NumberDescription, ...] = (
         key="led_brightness",
         translation_key="led_brightness",
         native_min_value=0,
-        native_max_value=100,
-        native_step=1,
+        native_max_value=80,
+        native_step=10,
         native_unit_of_measurement=PERCENTAGE,
         icon="mdi:brightness-6",
+        entity_registry_enabled_default=False,
+    ),
+    DreameFP10NumberDescription(
+        key="timer_hours",
+        translation_key="timer_hours",
+        native_min_value=0,
+        native_max_value=12,
+        native_step=1,
+        native_unit_of_measurement="h",
+        icon="mdi:timer-outline",
     ),
 )
 
@@ -69,4 +80,14 @@ class DreameFP10Number(DreameFP10Entity, NumberEntity):
     async def async_set_native_value(self, value: float) -> None:
         """Set number value."""
         if self.entity_description.key == "led_brightness":
+            # Keep the existing number unique ID for migration; snap to the
+            # discrete U2513 levels while the exact-choice select is preferred.
+            value = normalize_led_brightness(value)
             await self.coordinator.async_set_led_brightness(round(value))
+        elif self.entity_description.key == "timer_hours":
+            # The U2513 simple countdown accepts integer hours from 0 (off) to 12.
+            value = max(0, min(12, round(value)))
+            await self.coordinator.async_set_properties(
+                [{"siid": 6, "piid": 8, "value": value}],
+                optimistic_data={"timer_hours": value},
+            )

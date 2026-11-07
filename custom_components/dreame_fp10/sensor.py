@@ -32,7 +32,6 @@ except ImportError:  # Home Assistant before 2026.10
 
 from .const import (
     DOMAIN,
-    MATTER_CLUSTER_ACTIVATED_CARBON_FILTER_MONITORING,
     MATTER_CLUSTER_AIR_QUALITY,
     MATTER_CLUSTER_HEPA_FILTER_MONITORING,
     MATTER_CLUSTER_RELATIVE_HUMIDITY_MEASUREMENT,
@@ -41,10 +40,14 @@ from .const import (
 from .coordinator import DreameFP10Coordinator
 from .entity import DreameFP10Entity
 from .state import (
+    AIR_QUALITY_CATEGORY_OPTIONS,
     CLOUD_STATUS_OPTIONS,
     INTERNAL_PROPERTY_KEYS,
+    SELF_CLEANING_STATUS_OPTIONS,
     TEMPERATURE_KEY,
     TEMPERATURE_STATUS_OPTIONS,
+    air_quality_category,
+    self_cleaning_status,
 )
 
 
@@ -53,6 +56,7 @@ class DreameFP10SensorDescription(SensorEntityDescription):
     """Sensor description with Matter mapping metadata."""
 
     matter_cluster: str | None = None
+    registry_key: str | None = None
 
 
 SENSORS: tuple[DreameFP10SensorDescription, ...] = (
@@ -65,17 +69,28 @@ SENSORS: tuple[DreameFP10SensorDescription, ...] = (
         matter_cluster=MATTER_CLUSTER_AIR_QUALITY,
     ),
     DreameFP10SensorDescription(
-        key="tvoc",
-        translation_key="tvoc",
-        icon="mdi:molecule",
+        key="pm10",
+        translation_key="pm10",
+        registry_key="tvoc",
+        device_class=SensorDeviceClass.PM10,
+        native_unit_of_measurement=PM25_CONCENTRATION_UNIT,
         state_class=SensorStateClass.MEASUREMENT,
         matter_cluster=MATTER_CLUSTER_AIR_QUALITY,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
     ),
     DreameFP10SensorDescription(
         key="air_quality_level",
         translation_key="air_quality_level",
         icon="mdi:air-filter",
         state_class=SensorStateClass.MEASUREMENT,
+        matter_cluster=MATTER_CLUSTER_AIR_QUALITY,
+    ),
+    DreameFP10SensorDescription(
+        key="air_quality_category",
+        translation_key="air_quality_category",
+        device_class=SensorDeviceClass.ENUM,
+        options=AIR_QUALITY_CATEGORY_OPTIONS,
         matter_cluster=MATTER_CLUSTER_AIR_QUALITY,
     ),
     DreameFP10SensorDescription(
@@ -105,7 +120,6 @@ SENSORS: tuple[DreameFP10SensorDescription, ...] = (
     DreameFP10SensorDescription(
         key="hepa_days",
         translation_key="hepa_days",
-        device_class=SensorDeviceClass.DURATION,
         native_unit_of_measurement=UnitOfTime.DAYS,
         icon="mdi:calendar-clock",
         state_class=SensorStateClass.MEASUREMENT,
@@ -117,19 +131,13 @@ SENSORS: tuple[DreameFP10SensorDescription, ...] = (
         native_unit_of_measurement=PERCENTAGE,
         icon="mdi:air-filter",
         state_class=SensorStateClass.MEASUREMENT,
-        matter_cluster=MATTER_CLUSTER_ACTIVATED_CARBON_FILTER_MONITORING,
     ),
     DreameFP10SensorDescription(
         key="carbon_metric",
         translation_key="carbon_metric",
+        native_unit_of_measurement=UnitOfTime.DAYS,
         icon="mdi:filter-clock",
         state_class=SensorStateClass.MEASUREMENT,
-        matter_cluster=MATTER_CLUSTER_ACTIVATED_CARBON_FILTER_MONITORING,
-    ),
-    DreameFP10SensorDescription(
-        key="display_text",
-        translation_key="display_text",
-        icon="mdi:information-outline",
     ),
 )
 
@@ -186,6 +194,13 @@ DIAGNOSTIC_SENSORS: tuple[DreameFP10SensorDescription, ...] = (
         icon="mdi:thermometer-alert",
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
+    DreameFP10SensorDescription(
+        key="self_cleaning_status",
+        translation_key="self_cleaning_status",
+        device_class=SensorDeviceClass.ENUM,
+        options=SELF_CLEANING_STATUS_OPTIONS,
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
 )
 
 
@@ -215,7 +230,7 @@ class DreameFP10Sensor(DreameFP10Entity, SensorEntity):
         coordinator: DreameFP10Coordinator,
         description: DreameFP10SensorDescription,
     ) -> None:
-        super().__init__(coordinator, description.key)
+        super().__init__(coordinator, description.registry_key or description.key)
         self.entity_description = description
 
     @property
@@ -235,6 +250,13 @@ class DreameFP10Sensor(DreameFP10Entity, SensorEntity):
     @property
     def native_value(self) -> Any:
         """Return the current sensor value."""
+        if self.entity_description.key == "air_quality_category":
+            return air_quality_category(
+                (self.coordinator.data or {}).get("air_quality_level")
+            )
+
+        if self.entity_description.key == "pm10":
+            attributes["mapping_status"] = "experimental_generic_miot_mapping"
         return (self.coordinator.data or {}).get(self.entity_description.key)
 
     @property
@@ -257,6 +279,11 @@ class DreameFP10Sensor(DreameFP10Entity, SensorEntity):
                         else None
                     ),
                 }
+            )
+
+        if self.entity_description.key == "air_quality_category":
+            attributes["raw_air_quality_key"] = (self.coordinator.data or {}).get(
+                "air_quality_level"
             )
 
         return attributes or None
@@ -307,6 +334,8 @@ class DreameFP10DiagnosticSensor(DreameFP10Entity, SensorEntity):
             if status in TEMPERATURE_STATUS_OPTIONS:
                 return status
             return None
+        if key == "self_cleaning_status":
+            return self_cleaning_status(coordinator.data.get(key))
         return None
 
     @property
@@ -385,5 +414,8 @@ class DreameFP10DiagnosticSensor(DreameFP10Entity, SensorEntity):
 
         if key == "temperature_status":
             return coordinator.temperature.as_dict()
+
+        if key == "self_cleaning_status":
+            return {"miot_property": "7.1", "raw_value": coordinator.data.get(key)}
 
         return None

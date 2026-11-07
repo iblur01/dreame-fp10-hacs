@@ -21,10 +21,11 @@ spec.loader.exec_module(mod)
 FP10 = {
     "power": (2, 1), "mode": (2, 3), "fan_speed": (2, 4), "humidity": (3, 2),
     "temperature": (3, 3), "air_quality_level": (3, 4), "pm25": (3, 5),
-    "tvoc": (3, 6), "tvoc_mirror": (3, 9), "display_index": (3, 12),
-    "display_text": (3, 13), "hepa_life": (4, 1), "hepa_days": (4, 2),
+    "pm10": (3, 6), "hepa_life": (4, 1), "hepa_days": (4, 2),
     "carbon_life": (4, 5), "carbon_metric": (4, 6), "led_brightness": (6, 6),
-    "child_lock": (6, 10), "led_breathe": (6, 12), "sound": (6, 17),
+    "child_lock": (6, 10), "temperature_unit": (6, 4),
+    "weight_unit": (6, 11), "timer_hours": (6, 8),
+    "led_breathe": (6, 12), "sound": (6, 17), "self_cleaning_status": (7, 1),
 }
 
 cache = json.loads(TOKENS.read_text())

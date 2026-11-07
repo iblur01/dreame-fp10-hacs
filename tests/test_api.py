@@ -35,8 +35,12 @@ class FakeSession:
 
     def __init__(self, response: FakeResponse) -> None:
         self.response = response
+        self.last_url: str | None = None
+        self.last_kwargs: dict[str, object] | None = None
 
     def post(self, *args: object, **kwargs: object) -> FakeResponse:
+        self.last_url = str(args[0]) if args else None
+        self.last_kwargs = kwargs
         return self.response
 
     def close(self) -> None:
@@ -120,6 +124,223 @@ class CloudResponseTest(unittest.TestCase):
         with self.assertRaises(api.DreameFP10ConnectionError) as ctx:
             client.get_devices()
         self.assertIn("device list", str(ctx.exception))
+
+    def test_start_auto_clean_uses_the_configured_did_and_exact_action(self) -> None:
+        client = self._api(200, {"code": 0, "data": {"result": {"code": 0}}})
+
+        client.start_auto_clean("did-1", "u2513.local")
+
+        session = client._session
+        self.assertIsInstance(session, FakeSession)
+        assert isinstance(session, FakeSession)
+        payload = session.last_kwargs["json"]
+        self.assertEqual(
+            payload["data"]["params"],
+            {"did": "did-1", "siid": 7, "aiid": 1},
+        )
+        self.assertNotIn("in", payload["data"]["params"])
+        self.assertEqual(payload["data"]["method"], "action")
+        self.assertIn("-u2513", session.last_url)
+
+    def test_power_action_uses_u2513_integer_input(self) -> None:
+        for on, expected in ((True, 1), (False, 0)):
+            client = self._api(200, {"code": 0, "data": {"result": {"code": 0}}})
+            self.assertTrue(client.set_power("did-1", on, "u2513.local"))
+            session = client._session
+            self.assertIsInstance(session, FakeSession)
+            assert isinstance(session, FakeSession)
+            params = session.last_kwargs["json"]["data"]["params"]
+            self.assertEqual(params["in"], [{"piid": 1, "value": expected}])
+            self.assertIs(type(params["in"][0]["value"]), int)
+
+    def test_simple_countdown_writes_integer_hours_to_6_8(self) -> None:
+        client = self._api(
+            200,
+            {"code": 0, "data": {"result": [{"code": 0}]}},
+        )
+
+        self.assertTrue(
+            client.set_properties(
+                "did-1",
+                [{"siid": 6, "piid": 8, "value": 12}],
+                "u2513.local",
+            )
+        )
+        session = client._session
+        self.assertIsInstance(session, FakeSession)
+        assert isinstance(session, FakeSession)
+        payload = session.last_kwargs["json"]
+        self.assertEqual(payload["data"]["method"], "set_properties")
+        self.assertEqual(
+            payload["data"]["params"],
+            [{"did": "did-1", "siid": 6, "piid": 8, "value": 12}],
+        )
+
+    def test_u2513_display_unit_selects_write_exact_properties(self) -> None:
+        client = self._api(
+            200,
+            {"code": 0, "data": {"result": [{"code": 0}, {"code": 0}]}},
+        )
+
+        self.assertTrue(
+            client.set_properties(
+                "did-1",
+                [
+                    {"siid": 6, "piid": 4, "value": 1},
+                    {"siid": 6, "piid": 11, "value": 1},
+                ],
+            )
+        )
+        session = client._session
+        assert isinstance(session, FakeSession)
+        self.assertEqual(
+            session.last_kwargs["json"]["data"]["params"],
+            [
+                {"did": "did-1", "siid": 6, "piid": 4, "value": 1},
+                {"did": "did-1", "siid": 6, "piid": 11, "value": 1},
+            ],
+        )
+
+    def test_brightness_change_leaves_breathing_and_writes_supported_level(self) -> None:
+        client = self._api(
+            200,
+            {"code": 0, "data": {"result": [{"code": 0}, {"code": 0}]}},
+        )
+        self.assertTrue(
+            client.set_properties(
+                "did-1",
+                [
+                    {"siid": 6, "piid": 12, "value": 0},
+                    {"siid": 6, "piid": 6, "value": 50},
+                ],
+            )
+        )
+        session = client._session
+        assert isinstance(session, FakeSession)
+        self.assertEqual(
+            session.last_kwargs["json"]["data"]["params"],
+            [
+                {"did": "did-1", "siid": 6, "piid": 12, "value": 0},
+                {"did": "did-1", "siid": 6, "piid": 6, "value": 50},
+            ],
+        )
+
+    def test_advanced_schedule_read_modify_write_preserves_opaque_fields(self) -> None:
+        client = self._api(200, {"code": 0, "data": {"result": []}})
+        current = "weekday|0|06:00-01111100|tsensor-x|7|opaque-time|opaque-sensor|2-vendor-tail"
+        reads: list[object] = []
+        writes: list[object] = []
+        client.get_properties = lambda did, props, host=None: (
+            reads.append((did, props, host)) or {(6, 2): current}
+        )
+        client.set_properties = lambda did, props, host=None: (
+            writes.append((did, props, host)) or True
+        )
+
+        result = client.manage_advanced_schedule(
+            "did-1",
+            operation="update",
+            slot=1,
+            name="Evening",
+            time="20:30",
+            repeat_mask="01111100",
+            action="off",
+            host="u2513.local",
+        )
+
+        expected = "Evening|0|20:30-01111100|tsensor-x|7|opaque-time|opaque-sensor|1-vendor-tail"
+        self.assertEqual(result["schedule"], expected)
+        self.assertTrue(result["changed"])
+        self.assertEqual(reads, [("did-1", [{"siid": 6, "piid": 2}], "u2513.local")])
+        self.assertEqual(
+            writes,
+            [
+                (
+                    "did-1",
+                    [{"siid": 6, "piid": 2, "value": expected}],
+                    "u2513.local",
+                )
+            ],
+        )
+
+    def test_create_schedule_encodes_defaults_and_period(self) -> None:
+        serialized, count = api.edit_advanced_schedule(
+            "",
+            operation="create",
+            slot=1,
+            time="22:15",
+            end_time="06:45",
+            repeat_mask="01111111",
+            action="on",
+        )
+        self.assertEqual(count, 1)
+        self.assertEqual(
+            serialized,
+            "t1|1|22:15-06:45-01111111|-1|0|-1|-1|2-0-0-0",
+        )
+
+    def test_schedule_enable_and_delete_preserve_other_records(self) -> None:
+        current = "a|1|08:00-10000000|-1|0|-1|-1|2-0-0||b|1|18:00-10000000|-1|0|-1|-1|1-0-0"
+        disabled, count = api.edit_advanced_schedule(
+            current, operation="enable", slot=2, enabled=False
+        )
+        self.assertEqual(count, 2)
+        self.assertEqual(disabled.split("||")[1].split("|")[1], "0")
+        remaining, count = api.edit_advanced_schedule(
+            disabled, operation="delete", slot=1
+        )
+        self.assertEqual(count, 1)
+        self.assertEqual(remaining, disabled.split("||")[1])
+
+    def test_schedule_rejects_invalid_inputs_and_legacy_payloads(self) -> None:
+        with self.assertRaises(ValueError):
+            api.edit_advanced_schedule(
+                "", operation="create", slot=1, time="25:99",
+                repeat_mask="10000000", action="on",
+            )
+        with self.assertRaises(ValueError):
+            api.edit_advanced_schedule(
+                "legacy-format", operation="create", slot=1, time="22:00",
+                repeat_mask="10000000", action="on",
+            )
+
+    def test_schedule_read_must_contain_non_null_string_before_write(self) -> None:
+        for read_values in ({}, {(6, 2): None}, {(6, 2): 123}):
+            client = self._api(200, {"code": 0, "data": {"result": []}})
+            writes: list[object] = []
+            client.get_properties = lambda did, props, host=None, values=read_values: values
+            client.set_properties = lambda *args, **kwargs: writes.append(args) or True
+            with self.subTest(read_values=read_values), self.assertRaises(ValueError):
+                client.manage_advanced_schedule(
+                    "did-1",
+                    operation="create",
+                    slot=1,
+                    time="22:00",
+                    repeat_mask="10000000",
+                    action="on",
+                )
+            self.assertEqual(writes, [])
+
+    def test_set_properties_requires_complete_matching_acknowledgements(self) -> None:
+        request = [
+            {"siid": 6, "piid": 4, "value": 1},
+            {"siid": 6, "piid": 11, "value": 0},
+        ]
+        for response in (
+            [{"code": 0}],  # partial acknowledgement
+            [{"code": 0}, {"code": 0}, {"code": 0}],  # extra acknowledgement
+            [
+                {"code": 0, "siid": 6, "piid": 4},
+                {"code": 0, "siid": 6, "piid": 4},
+            ],  # duplicate instead of acknowledging the second property
+            [
+                {"code": 0, "siid": 6, "piid": 4},
+                {"code": 0, "siid": 6, "piid": 9},
+            ],  # out-of-target acknowledgement
+        ):
+            client = self._api(200, {"code": 0, "data": {"result": response}})
+            with self.subTest(response=response):
+                self.assertFalse(client.set_properties("did-1", request))
 
     def test_login_error_does_not_echo_body(self) -> None:
         client = api.DreameCloudAPI("user", "password", "eu")

@@ -23,7 +23,6 @@ PROPERTIES = {
     "power": (2, 1),
     "temperature": (3, 3),
     "pm25": (3, 5),
-    "tvoc_mirror": (3, 9),
 }
 
 
@@ -87,6 +86,63 @@ class MergeStateTest(unittest.TestCase):
     def test_missing_exposed_ignores_internal_properties(self) -> None:
         merged = state.merge_state(PROPERTIES, {(3, 3): 21})
         self.assertEqual(merged.missing_exposed, ("power", "pm25"))
+
+
+class SelfCleaningStatusTest(unittest.TestCase):
+    """Test only the status values explicitly rendered by the U2513 page."""
+
+    def test_known_status_values(self) -> None:
+        self.assertEqual(state.self_cleaning_status(1), "running")
+        self.assertEqual(state.self_cleaning_status("2"), "complete")
+        self.assertEqual(state.self_cleaning_status(3), "error")
+
+    def test_default_and_unknown_values_remain_unknown(self) -> None:
+        self.assertIsNone(state.self_cleaning_status(0))
+        self.assertIsNone(state.self_cleaning_status("invalid"))
+
+    def test_air_quality_key_decoding(self) -> None:
+        self.assertEqual(state.air_quality_category(-1), "unknown")
+        self.assertEqual(state.air_quality_category(1), "excellent")
+        self.assertEqual(state.air_quality_category(2), "good")
+        self.assertEqual(state.air_quality_category(3), "moderate")
+        self.assertEqual(state.air_quality_category(4), "poor")
+        self.assertEqual(state.air_quality_category(99), "unknown")
+
+    def test_brightness_snaps_to_supported_levels(self) -> None:
+        self.assertEqual(state.normalize_led_brightness(0), 0)
+        self.assertEqual(state.normalize_led_brightness(30), 30)
+        self.assertEqual(state.normalize_led_brightness(40), 30)
+        self.assertEqual(state.normalize_led_brightness(45), 50)
+        self.assertEqual(state.normalize_led_brightness(60), 50)
+        self.assertEqual(state.normalize_led_brightness(100), 80)
+
+    def test_fan_percentage_only_in_auto_or_custom(self) -> None:
+        self.assertEqual(state.fan_percentage_for_mode(0, 5), 50)
+        self.assertEqual(state.fan_percentage_for_mode(3, 5), 50)
+        self.assertIsNone(state.fan_percentage_for_mode(2, 5))
+        self.assertIsNone(state.fan_percentage_for_mode(4, 5))
+        self.assertIsNone(state.fan_percentage_for_mode(3, None))
+
+    def test_fan_speed_write_enters_custom_only_when_needed(self) -> None:
+        self.assertEqual(
+            state.manual_speed_properties(0, 6),
+            [
+                {"siid": 2, "piid": 3, "value": 3},
+                {"siid": 2, "piid": 4, "value": 6},
+            ],
+        )
+        self.assertEqual(
+            state.manual_speed_properties(3, 6),
+            [{"siid": 2, "piid": 4, "value": 6}],
+        )
+
+    def test_air_quality_categories_keep_unknown_values_unknown(self) -> None:
+        self.assertEqual(state.air_quality_category(-1), "unknown")
+        self.assertEqual(state.air_quality_category(1), "excellent")
+        self.assertEqual(state.air_quality_category(2), "good")
+        self.assertEqual(state.air_quality_category(3), "moderate")
+        self.assertEqual(state.air_quality_category(4), "poor")
+        self.assertEqual(state.air_quality_category(99), "unknown")
 
 
 class ProbeHelpersTest(unittest.TestCase):
